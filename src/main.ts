@@ -1,18 +1,26 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { User, UserRole } from './users/entities/user.entity'; // Importá UserRole
+import { User, UserRole } from './users/entities/user.entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import helmet from 'helmet'; // 1. IMPORTAR HELMET
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // ... (configuraciones de CORS y Pipes) ...
-  app.enableCors();
-  app.useGlobalPipes(new ValidationPipe());
+  // 2. ACTIVAR SEGURIDAD
+  app.use(helmet()); 
+  app.enableCors(); // En producción (origin: 'https://reclamaya.com.ar')
 
-  // --- ACÁ ESTÁ EL SEED DEL ADMIN ---
+  // 3. VALIDACIÓN ESTRICTA (Fundamental para evitar inyecciones de datos raros)
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true, // Elimina propiedades que no estén en el DTO
+    forbidNonWhitelisted: true, // Tira error si mandan algo extra
+    transform: true // Convierte tipos automáticamente (ej. string '10' a number 10)
+  }));
+
+  // --- SEED ADMIN (Esto lo dejamos igual) ---
   const usersRepository = app.get(getRepositoryToken(User));
   const adminEmail = 'admin@estudio.com';
   
@@ -26,13 +34,9 @@ async function bootstrap() {
       nombre: 'Admin Estudio',
       email: adminEmail,
       password,
-      role: UserRole.ADMIN, // Asegurate que sea ADMIN
-      
-      // --- AGREGÁ ESTAS DOS LÍNEAS ---
-      dni: '00000000',       // Un DNI ficticio para el Admin
-      telefono: '0000000000', // Un teléfono ficticio
-      // -------------------------------
-      
+      role: UserRole.ADMIN,
+      dni: '00000000',
+      telefono: '0000000000',
       referidoPor: null
     });
 

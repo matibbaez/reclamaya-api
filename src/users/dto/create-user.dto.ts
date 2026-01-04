@@ -1,22 +1,25 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { UserRole } from '../entities/user.entity';
 
 export class CreateUserDto {
-  @IsEmail()
-  email: string;
-
-  @IsString()
-  @MinLength(6)
-  password: string;
-
+  @IsNotEmpty()
   @IsString()
   nombre: string;
 
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  password: string;
+
   @IsOptional()
   @IsEnum(UserRole)
-  role?: UserRole;
+  role?: string;
 
-  // 👇 AGREGÁ ESTOS:
+  // Datos opcionales del perfil
   @IsOptional()
   @IsString()
   dni?: string;
@@ -30,6 +33,10 @@ export class CreateUserDto {
   matricula?: string;
 
   @IsOptional()
+  @IsString()
+  referralCode?: string; // Para buscar por ID (Link de invitación)
+
+  @IsOptional()
   @IsEmail()
-  emailReferido?: string; // Para buscar al padre
+  emailReferido?: string; // Por si alguna vez buscas por email
 }

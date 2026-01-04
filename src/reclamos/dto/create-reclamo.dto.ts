@@ -86,4 +86,13 @@ export class CreateReclamoDto {
   @IsOptional()
   @IsBooleanString()
   tiene_seguro?: string; 
+
+  @IsOptional()
+  @IsBooleanString()
+  in_itinere?: string;
+
+  // ART
+  @IsOptional()
+  @IsBooleanString()
+  posee_art?: string;
 }

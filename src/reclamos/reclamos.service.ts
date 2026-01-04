@@ -8,7 +8,7 @@ import { randomBytes } from 'crypto';
 import { extname } from 'path';
 import { MailService } from 'src/mail/mail.service';
 import { PdfService } from 'src/common/pdf.service'; 
-import { User } from 'src/users/entities/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -18,7 +18,6 @@ export class ReclamosService {
 
   constructor(
     @InjectRepository(Reclamo) private readonly reclamoRepository: Repository<Reclamo>,
-    // Inyectamos el repo de usuarios para buscar referidos
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly storageService: StorageService,
     private readonly mailService: MailService,
@@ -35,15 +34,17 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // 1. CREATE (Con lógica de Referidos)
+  // 1. CREATE (Con lógica de Referidos y Nuevos Campos)
   // ----------------------------------------------------------------------
   async create(dto: CreateReclamoDto, files: any) {
 
     // --- A. VALIDACIÓN LÓGICA ---
     if (!files.fileDNI) throw new BadRequestException('Falta el DNI.');
 
-    // Convertimos el string 'true'/'false' a booleano real
+    // Convertimos los strings 'true'/'false' a booleanos reales
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
+    const inItinere = String(dto.in_itinere) === 'true'; // 👈 NUEVO
+    const poseeArt = String(dto.posee_art) === 'true';   // 👈 NUEVO
 
     // Caso: CONDUCTOR
     if (dto.rol_victima === 'Conductor') {
@@ -63,13 +64,13 @@ export class ReclamosService {
        if (!files.fileMedicos) throw new BadRequestException('Faltan certificados médicos o historia clínica.');
     }
 
-    // --- 🔍 LÓGICA DE REFERIDOS (NUEVO) ---
+    // --- 🔍 LÓGICA DE REFERIDOS ---
     // Buscamos si existe un productor con el ID que viene en codigo_ref
     let productor: User | undefined; 
 
     if (dto.codigo_ref) {
       try {
-        productor = await this.userRepository.findOne({ where: { id: dto.codigo_ref } }) || undefined; // El || undefined asegura que si no encuentra, no sea null
+        productor = await this.userRepository.findOne({ where: { id: dto.codigo_ref } }) || undefined; 
         if (productor) {
           console.log(`✅ Referido asignado: ${productor.email}`);
         }
@@ -93,7 +94,7 @@ export class ReclamosService {
     const path_dni = await upload(files.fileDNI[0], 'dni');
     const path_licencia = await upload(files.fileLicencia?.[0], 'licencia');
     const path_cedula = await upload(files.fileCedula?.[0], 'cedula');
-    let path_poliza = await upload(files.fileSeguro?.[0], 'poliza'); // Puede ser null
+    let path_poliza = await upload(files.fileSeguro?.[0], 'poliza'); 
     const path_denuncia = await upload(files.fileDenuncia?.[0], 'denuncia');
     const path_fotos = await upload(files.fileFotos?.[0], 'fotos');
     const path_medicos = await upload(files.fileMedicos?.[0], 'medicos');
@@ -119,7 +120,7 @@ export class ReclamosService {
         const nombreArchivo = `${dto.dni}-carta-generada-${timestamp}.pdf`;
         const path_generado = await this.storageService.uploadFile(fakeFile, 'legales', nombreArchivo);
         
-        path_poliza = path_generado; // Asignamos el PDF generado como póliza
+        path_poliza = path_generado; 
 
       } catch (error) {
         console.error('Error generando PDF:', error);
@@ -138,15 +139,18 @@ export class ReclamosService {
       patente_tercero: dto.patente_tercero,
       patente_propia: dto.patente_propia,
       relato_hecho: dto.relato_hecho,
+      hora_hecho: dto.hora_hecho,
       fecha_hecho: dto.fecha_hecho,
       lugar_hecho: dto.lugar_hecho,
       localidad: dto.localidad,
+      in_itinere: inItinere,
+      posee_art: poseeArt,
 
       // Sistema
       codigo_seguimiento,
       estado: ReclamoEstado.ENVIADO,
       
-      // Asignación de dueño (Productor) si existe, o null
+      // Asignación de dueño
       usuario_creador: productor, 
       
       // Archivos
@@ -164,7 +168,6 @@ export class ReclamosService {
     // --- E. EMAILS ---
     this.mailService.sendNewReclamoClient(dto.email, dto.nombre, codigo_seguimiento).catch(console.error);
     
-    // Notificamos al Admin (y quizás en el futuro al Productor también)
     this.mailService.sendNewReclamoAdmin({
       nombre: dto.nombre,
       dni: dto.dni,
@@ -175,14 +178,36 @@ export class ReclamosService {
     return { message: '¡Éxito!', codigo_seguimiento };
   }
 
-  // --- RESTO DE MÉTODOS ---
+  // ----------------------------------------------------------------------
+  // ASIGNAR TRAMITADOR
+  // ----------------------------------------------------------------------
+  async asignarTramitador(reclamoId: string, tramitadorId: string) {
+    const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
+    if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
+
+    const tramitador = await this.userRepository.findOne({ where: { id: tramitadorId } });
+    if (!tramitador) throw new NotFoundException('Usuario no encontrado');
+
+    const rolesValidos = [UserRole.ADMIN, UserRole.TRAMITADOR];
+    if (!rolesValidos.includes(tramitador.role as UserRole)) {
+       throw new BadRequestException(`El usuario ${tramitador.nombre} no tiene permisos para gestionar reclamos.`);
+    }
+
+    reclamo.tramitador = tramitador;
+    
+    if (reclamo.estado === ReclamoEstado.ENVIADO) {
+      reclamo.estado = ReclamoEstado.RECEPCIONADO;
+    }
+
+    return this.reclamoRepository.save(reclamo);
+  }
 
   async findAll(estado?: string) {
     const where = estado ? { estado: estado as ReclamoEstado } : {};
     return this.reclamoRepository.find({ 
       where, 
       order: { fecha_creacion: 'DESC' },
-      relations: ['usuario_creador'] // Traemos al productor para verlo en el dashboard
+      relations: ['usuario_creador'] 
     });
   }
 
@@ -229,19 +254,23 @@ export class ReclamosService {
   async findOne(id: string) { 
     const reclamo = await this.reclamoRepository.findOne({ 
       where: { id },
-      relations: ['usuario_creador'] // 👈 ESTO ES LO QUE FALTABA
+      relations: ['usuario_creador', 'tramitador'] 
     }); 
 
     if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
     return reclamo;
   }
+
   remove(id: string) { return this.reclamoRepository.delete(id); }
 
   async findAllByUser(userId: string) {
     return this.reclamoRepository.find({
-      where: { usuario_creador: { id: userId } }, // Filtra por TU id
+      where: [
+        { usuario_creador: { id: userId } },
+        { tramitador: { id: userId } }
+      ],
       order: { fecha_creacion: 'DESC' },
-      relations: ['usuario_creador'] 
+      relations: ['usuario_creador', 'tramitador'] 
     });
   }
 }

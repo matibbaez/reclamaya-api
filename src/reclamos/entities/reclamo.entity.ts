@@ -17,9 +17,15 @@ export class Reclamo {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // Productor (Quién lo cargó)
   @ManyToOne(() => User, (user) => user.reclamos_cargados, { nullable: true })
   @JoinColumn({ name: 'usuario_creador_id' })
   usuario_creador: User;
+
+  // Tramitador (Quién lo gestiona en el estudio)
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'tramitador_asignado_id' })
+  tramitador: User | null;
 
   @Column() nombre: string;
   @Column() dni: string;
@@ -36,8 +42,8 @@ export class Reclamo {
 
   @CreateDateColumn() fecha_creacion: Date;
 
-  // --- NUEVOS CAMPOS DE TRÁNSITO ---
-  @Column() rol_victima: string; // Conductor, Acompanante, Peaton
+  // --- CAMPOS DE TRÁNSITO ---
+  @Column() rol_victima: string; 
   
   @Column({ nullable: true }) aseguradora_tercero: string;
   @Column({ nullable: true }) patente_tercero: string;
@@ -45,16 +51,23 @@ export class Reclamo {
   @Column({ nullable: true, type: 'text' }) relato_hecho: string;
   
   @Column({ nullable: true }) fecha_hecho: string;
+  @Column({ nullable: true }) hora_hecho: string;
   @Column({ nullable: true }) lugar_hecho: string;
   @Column({ nullable: true }) localidad: string;
 
-  // --- NUEVOS ARCHIVOS ---
+  // --- ARCHIVOS ---
   @Column() path_dni: string;
-  
   @Column({ nullable: true }) path_licencia: string;
   @Column({ nullable: true }) path_cedula: string;
   @Column({ nullable: true }) path_poliza: string;
   @Column({ nullable: true }) path_denuncia: string;
   @Column({ nullable: true }) path_fotos: string;
   @Column({ nullable: true }) path_medicos: string;
+
+  @Column({ default: false }) 
+  in_itinere: boolean;
+
+  // ¿Tiene ART?
+  @Column({ default: false }) 
+  posee_art: boolean;
 }

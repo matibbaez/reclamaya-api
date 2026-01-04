@@ -10,8 +10,8 @@ import {
   UseInterceptors,
   UploadedFiles,
   Request,
-  Query
-  // Borré Request porque ya no se usa en el create
+  Query,
+  BadRequestException
 } from '@nestjs/common';
 import { ReclamosService } from './reclamos.service';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
@@ -34,9 +34,8 @@ export class ReclamosController {
   constructor(private readonly reclamosService: ReclamosService) {}
 
   // ------------------------------------------------------------------
-  // 1. ENDPOINT: "INICIAR RECLAMO" (AHORA ES PÚBLICO 🔓)
+  // 1. ENDPOINT: "INICIAR RECLAMO" (PÚBLICO)
   // ------------------------------------------------------------------
-  // SIN @UseGuards AQUI
   @Post()
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'fileDNI', maxCount: 1 },
@@ -58,9 +57,7 @@ export class ReclamosController {
       fileFotos?: Express.Multer.File[],
       fileMedicos?: Express.Multer.File[]
     }
-    // Borré @Request() req -> No hay usuario logueado
   ) {
-    // Le saqué el tercer argumento (req.user)
     return this.reclamosService.create(createReclamoDto, files); 
   }
 
@@ -72,18 +69,31 @@ export class ReclamosController {
     return this.reclamosService.consultarPorCodigo(codigo);
   }
 
+  // ------------------------------------------------------------------
+  // 3. ENDPOINT: "MIS SINIESTROS" (PRODUCTOR/TRAMITADOR)
+  // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get('mis-siniestros')
   async findMisSiniestros(@Request() req) {
-    // Obtenemos tu ID desde el Token
-    // Nota: Si usás la estrategia default de Nest, puede ser req.user.userId. 
-    // Si devolvés la entidad entera en validate(), es req.user.id. Probamos con .id primero.
     const userId = req.user.id || req.user.userId; 
     return this.reclamosService.findAllByUser(userId);
   }
 
   // ------------------------------------------------------------------
-  // 3. ENDPOINT: "VER TODOS" (PRIVADO - ADMIN)
+  // 4. ENDPOINT: "ASIGNAR TRAMITADOR" (ADMIN) - ¡NUEVO!
+  // ------------------------------------------------------------------
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/asignar')
+  async asignarTramitador(
+    @Param('id') id: string,
+    @Body('tramitadorId') tramitadorId: string
+  ) {
+    if (!tramitadorId) throw new BadRequestException('Falta el ID del tramitador');
+    return this.reclamosService.asignarTramitador(id, tramitadorId);
+  }
+
+  // ------------------------------------------------------------------
+  // 5. ENDPOINT: "VER TODOS" (ADMIN)
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get()
@@ -92,7 +102,7 @@ export class ReclamosController {
   }
 
   // ------------------------------------------------------------------
-  // 4. ENDPOINT: "ACTUALIZAR ESTADO" (PRIVADO - ADMIN)
+  // 6. ENDPOINT: "ACTUALIZAR ESTADO" (ADMIN/TRAMITADOR)
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
@@ -101,7 +111,7 @@ export class ReclamosController {
   }
 
   // ------------------------------------------------------------------
-  // 5. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO - ADMIN)
+  // 7. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO)
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get('descargar/:id/:tipo')
@@ -114,9 +124,9 @@ export class ReclamosController {
   }
 
   // ------------------------------------------------------------------
-  // OTROS MÉTODOS
+  // OTROS MÉTODOS DE GESTIÓN
   // ------------------------------------------------------------------
-  @UseGuards(JwtAuthGuard) // Asumo que ver detalle completo es de admin
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) { return this.reclamosService.findOne(id); }
 

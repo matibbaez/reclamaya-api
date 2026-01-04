@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-// 1. IMPORTAMOS User Y UserRole
+
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 
@@ -17,42 +17,62 @@ export class AuthService {
     @InjectRepository(User) private userRepository: Repository<User>, 
   ) {}
 
-  // ... (validateUser y login dejalos igual) ...
+  // -----------------------------------------------------
+  // VALIDAR USUARIO
+  // -----------------------------------------------------
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
     if (user && await bcrypt.compare(pass, user.password)) {
       const { password, ...result } = user;
       return result;
     }
-    throw new UnauthorizedException('Credenciales incorrectas');
+    return null;
   }
 
+  // -----------------------------------------------------
+  // LOGIN
+  // -----------------------------------------------------
   async login(user: any) {
-    const payload = { sub: user.id, email: user.email, nombre: user.nombre, role: user.role };
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    
     return {
       access_token: this.jwtService.sign(payload),
-      user: { id: user.id, email: user.email, nombre: user.nombre, role: user.role }
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        role: user.role,
+        nombre_completo: user.nombre 
+      }
     };
   }
 
-  // --- REGISTER CORREGIDO ---
+  // -----------------------------------------------------
+  // REGISTRO
+  // -----------------------------------------------------
   async register(registerDto: RegisterAuthDto) {
     
-    // Validar email
+    // 1. Validar email
     const userExiste = await this.userRepository.findOne({ where: { email: registerDto.email } });
     if (userExiste) throw new BadRequestException('El email ya está registrado.');
 
-    // Buscar Padre
-    let usuarioPadre: User | null = null; // Tipado explícito
+    // 2. Buscar Padre (Referido)
+    let usuarioPadre: User | null = null;
+    
     if (registerDto.referralCode) {
       usuarioPadre = await this.userRepository.findOne({ 
         where: { id: registerDto.referralCode } 
       });
+      
+      if (!usuarioPadre) {
+        console.warn(`Código de referido no encontrado: ${registerDto.referralCode}`);
+      }
     }
 
+    // 3. Hash Password
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Crear Usuario
+    // 4. Crear Usuario
     const newUser = this.userRepository.create({
       nombre: registerDto.nombre,
       email: registerDto.email,
@@ -60,11 +80,10 @@ export class AuthService {
       dni: registerDto.dni,
       telefono: registerDto.telefono,
       
-      // 2. CORRECCIÓN: Usamos el Enum, no el string
+      matricula: registerDto.matricula, 
+
       role: UserRole.PRODUCTOR, 
-      
-      // 3. CORRECCIÓN: Asignación simple (TypeORM maneja el null si usuarioPadre es null)
-      referidoPor: usuarioPadre 
+      referidoPor: usuarioPadre || undefined // Usar undefined si es null para evitar conflicto de tipos
     });
 
     await this.userRepository.save(newUser);

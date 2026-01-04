@@ -22,8 +22,12 @@ export class RegisterAuthDto {
     @IsString()
     telefono: string;
 
-    // --- EL CAMPO MÁGICO PARA REFERIDOS ---
+    // 👇 AGREGÁ ESTE CAMPO
     @IsOptional()
     @IsString()
-    referralCode?: string; // Acá va a venir el ID del Broker que invita
+    matricula?: string; 
+
+    @IsOptional()
+    @IsString()
+    referralCode?: string; 
 }

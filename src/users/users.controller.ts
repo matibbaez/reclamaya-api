@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard'; // Asegurate de importar esto
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard'; 
 
 @Controller('users')
 export class UsersController {
@@ -14,18 +14,23 @@ export class UsersController {
   }
 
   // -----------------------------------------------------
-  // NUEVO ENDPOINT: VER MI EQUIPO (GET /users/mis-referidos)
+  // ✅ ENDPOINT RESTAURADO: VER MI EQUIPO
   // -----------------------------------------------------
-  @UseGuards(JwtAuthGuard) // Solo usuarios logueados pueden ver esto
+  @UseGuards(JwtAuthGuard) 
   @Get('mis-referidos')
   async findMyTeam(@Request() req) {
-    // req.user.userId viene del Token JWT (es el ID del que está logueado)
-    return this.usersService.findReferidos(req.user.userId);
+    // Obtenemos el ID del usuario desde el token JWT
+    const userId = req.user.id || req.user.userId;
+    return this.usersService.findReferidos(userId);
   }
 
+  // -----------------------------------------------------
+  // VER TODOS (ADMIN)
+  // -----------------------------------------------------
+  @UseGuards(JwtAuthGuard)
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Query('role') role?: string) {
+    return this.usersService.findAll(role);
   }
 
   @Get(':id')

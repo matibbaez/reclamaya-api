@@ -1,9 +1,9 @@
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt'; 
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { User, UserRole } from './entities/user.entity';
 
 @Injectable()
@@ -14,89 +14,80 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  // ¡ESTE ES EL MÉTODO QUE VA A "HACER LA MAGIA"!
+  // CREAR USUARIO
   async create(createUserDto: CreateUserDto): Promise<User> {
-    
-    // 1. Verificar si el email ya existe
     const existe = await this.userRepository.findOne({ where: { email: createUserDto.email } });
     if (existe) throw new BadRequestException('El email ya está registrado.');
 
-    // 2. Buscar al "Padre" (Referido)
-    // CAMBIO CLAVE: Inicializamos como 'undefined', no como 'null'
-    let padre: User | undefined = undefined; 
-
-    if (createUserDto.emailReferido) {
-      // Buscamos y si encontramos, asignamos. Si no, queda undefined.
-      const padreEncontrado = await this.userRepository.findOne({ where: { email: createUserDto.emailReferido } });
-      
-      if (padreEncontrado) {
-        padre = padreEncontrado;
-      } else {
-        // Opcional: avisar que no existe el referido
-        console.warn(`Referido no encontrado: ${createUserDto.emailReferido}`);
-      }
+    let padre: User | null = null; 
+    
+    // Lógica para buscar por ID (si viene del frontend) o Email (si viene de tu lógica anterior)
+    // Adaptado para soportar ambos casos por seguridad
+    if (createUserDto.referralCode) {
+        padre = await this.userRepository.findOne({ where: { id: createUserDto.referralCode } });
+    } else if (createUserDto.emailReferido) {
+        padre = await this.userRepository.findOne({ where: { email: createUserDto.emailReferido } });
     }
 
-    // 3. Hashear contraseña
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(createUserDto.password, saltRounds);
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-    // 4. Crear el usuario
     const newUser = this.userRepository.create({
       email: createUserDto.email,
       password: hashedPassword,
       nombre: createUserDto.nombre,
       role: createUserDto.role || UserRole.PRODUCTOR,
-      
-      // 👇 AGREGÁ ESTOS CAMPOS:
       dni: createUserDto.dni,
       telefono: createUserDto.telefono,
       matricula: createUserDto.matricula,
-      
-      referidoPor: padre || undefined,
+      referidoPor: padre || null,
     });
 
     return this.userRepository.save(newUser);
   }
 
-  // (El resto de métodos los dejamos para después, para el admin)
-  findAll() {
+  async findAll(role?: string) {
+    if (role) return this.userRepository.find({ where: { role } });
     return this.userRepository.find();
   }
 
-  // ¡Vamos a necesitar este para el login!
   findOneByEmail(email: string) {
     return this.userRepository.findOne({ where: { email } });
   }
 
-  findOne(id: string) {
-    return `This action returns a #${id} user`;
+  async findOne(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return user;
   }
 
   update(id: string, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+    return this.userRepository.update(id, updateUserDto);
   }
 
   remove(id: string) {
-    return `This action removes a #${id} user`;
+    return this.userRepository.delete(id);
   }
 
+  // -----------------------------------------------------
+  // ✅ MÉTODO RESTAURADO: TRAER MIS REFERIDOS
+  // -----------------------------------------------------
   async findReferidos(padreId: string) {
     return this.userRepository.find({
       where: { 
-        referidoPor: { id: padreId } // Buscamos los hijos de este padre
+        referidoPor: { id: padreId } 
       },
-      relations: ['reclamos_cargados'], // ¡Clave! Traemos sus reclamos para contarlos
+      relations: ['reclamos_cargados'], // Importante: Trae los reclamos para contarlos
       select: {
         id: true,
         nombre: true,
         email: true,
         role: true,
+        telefono: true,
+        matricula: true,
         createdAt: true,
-        // No traemos la password ni datos sensibles
       },
       order: {
-        createdAt: 'DESC' // Los más nuevos arriba
+        createdAt: 'DESC'
       }
     });
   }

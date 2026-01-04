@@ -5,6 +5,7 @@ export enum UserRole {
   ADMIN = 'Admin',
   TRAMITADOR = 'Tramitador',
   PRODUCTOR = 'Productor',
+  ORGANIZADOR = 'Organizador' 
 }
 
 @Entity('users')
@@ -28,8 +29,7 @@ export class User {
   })
   role: string;
 
-  // 👇 AGREGÁ ESTOS 3 CAMPOS NUEVOS 👇
-  @Column({ nullable: true }) // nullable: true porque un Admin quizás no tiene DNI cargado
+  @Column({ nullable: true }) 
   dni: string;
 
   @Column({ nullable: true })
