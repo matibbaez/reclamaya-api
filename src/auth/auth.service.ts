@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -22,7 +22,14 @@ export class AuthService {
   // -----------------------------------------------------
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
+    
     if (user && await bcrypt.compare(pass, user.password)) {
+      
+      // Si no está aprobado, lanzamos error específico
+      if (!user.isApproved) {
+        throw new ForbiddenException('Tu cuenta está pendiente de aprobación por un administrador.');
+      }
+
       const { password, ...result } = user;
       return result;
     }
@@ -51,43 +58,32 @@ export class AuthService {
   // REGISTRO
   // -----------------------------------------------------
   async register(registerDto: RegisterAuthDto) {
-    
-    // 1. Validar email
     const userExiste = await this.userRepository.findOne({ where: { email: registerDto.email } });
     if (userExiste) throw new BadRequestException('El email ya está registrado.');
 
-    // 2. Buscar Padre (Referido)
     let usuarioPadre: User | null = null;
-    
     if (registerDto.referralCode) {
-      usuarioPadre = await this.userRepository.findOne({ 
-        where: { id: registerDto.referralCode } 
-      });
-      
-      if (!usuarioPadre) {
-        console.warn(`Código de referido no encontrado: ${registerDto.referralCode}`);
-      }
+      usuarioPadre = await this.userRepository.findOne({ where: { id: registerDto.referralCode } });
     }
 
-    // 3. Hash Password
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // 4. Crear Usuario
     const newUser = this.userRepository.create({
       nombre: registerDto.nombre,
       email: registerDto.email,
       password: hashedPassword,
       dni: registerDto.dni,
       telefono: registerDto.telefono,
+      matricula: registerDto.matricula,
       
-      matricula: registerDto.matricula, 
-
-      role: UserRole.PRODUCTOR, 
-      referidoPor: usuarioPadre || undefined // Usar undefined si es null para evitar conflicto de tipos
+      role: UserRole.PRODUCTOR,
+      referidoPor: usuarioPadre || undefined,
+      
+      isApproved: false 
     });
 
     await this.userRepository.save(newUser);
 
-    return { message: 'Usuario registrado con éxito', userId: newUser.id };
+    return { message: 'Registro exitoso. Espera la aprobación del administrador.', userId: newUser.id };
   }
 }

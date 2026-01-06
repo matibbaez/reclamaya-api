@@ -29,8 +29,17 @@ export class UsersController {
   // -----------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get()
-  findAll(@Query('role') role?: string) {
-    return this.usersService.findAll(role);
+  findAll(
+    @Query('role') role?: string,
+    @Query('approved') approved?: string 
+  ) {
+    return this.usersService.findAll(role, approved);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/approve')
+  async approve(@Param('id') id: string) {
+    return this.usersService.approveUser(id);
   }
 
   @Get(':id')

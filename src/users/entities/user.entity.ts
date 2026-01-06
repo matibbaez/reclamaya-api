@@ -20,7 +20,7 @@ export class User {
   email: string;
 
   @Column()
-  password: string; // Hash
+  password: string;
 
   @Column({
     type: 'enum',
@@ -28,6 +28,9 @@ export class User {
     default: UserRole.PRODUCTOR,
   })
   role: string;
+
+  @Column({ default: false })
+  isApproved: boolean;
 
   @Column({ nullable: true }) 
   dni: string;
@@ -38,16 +41,13 @@ export class User {
   @Column({ nullable: true })
   matricula: string;
 
-  // FECHA DE CREACIÓN
   @CreateDateColumn()
   createdAt: Date;
 
-  // RELACIÓN: Referido Por (Padre)
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'referido_por_id' })
   referidoPor: User | null;
 
-  // RELACIÓN: Mis Reclamos (Si soy Productor)
   @OneToMany(() => Reclamo, (reclamo) => reclamo.usuario_creador)
   reclamos_cargados: Reclamo[];
 }

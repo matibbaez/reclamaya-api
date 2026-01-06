@@ -148,4 +148,26 @@ export class MailService {
 
     console.log(`📧 Mail enviado a ${email} por cambio a estado: ${nuevoEstado}`);
   }
+
+  async sendAccountApproved(email: string, nombre: string) {
+    if (!this.resend) return;
+
+    await this.resend.emails.send({
+      from: 'Reclama Ya <onboarding@resend.dev>',
+      to: email,
+      subject: '🎉 ¡Tu cuenta ha sido aprobada!',
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #333;">
+          <h1>¡Bienvenido a Reclama Ya, ${nombre}!</h1>
+          <p>Nos complace informarte que tu cuenta ha sido <strong>verificada y aprobada</strong> por nuestro equipo de administración.</p>
+          <p>Ya puedes acceder a la plataforma para gestionar tus siniestros.</p>
+          <br>
+          <a href="https://reclamaya.com.ar/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Login</a>
+          <br><br>
+          <hr>
+          <small>Equipo ReclamaYa!</small>
+        </div>
+      `,
+    });
+  }
 }

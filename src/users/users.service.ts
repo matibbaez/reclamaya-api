@@ -5,6 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt'; 
 import { User, UserRole } from './entities/user.entity';
+import { MailService } from 'src/mail/mail.service'; 
 
 @Injectable()
 export class UsersService {
@@ -12,6 +13,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly mailService: MailService
   ) {}
 
   // CREAR USUARIO
@@ -45,9 +47,32 @@ export class UsersService {
     return this.userRepository.save(newUser);
   }
 
-  async findAll(role?: string) {
-    if (role) return this.userRepository.find({ where: { role } });
-    return this.userRepository.find();
+  async findAll(role?: string, approvedStr?: string) {
+    const where: any = {};
+    
+    if (role) where.role = role;
+    if (approvedStr !== undefined) {
+        where.isApproved = approvedStr === 'true';
+    }
+
+    return this.userRepository.find({ 
+      where,
+      order: { createdAt: 'DESC' } 
+    });
+  }
+
+  async approveUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    user.isApproved = true;
+    await this.userRepository.save(user);
+
+    // Enviar email
+    console.log(`✅ Usuario ${user.email} aprobado. Enviando mail...`);
+    await this.mailService.sendAccountApproved(user.email, user.nombre);
+
+    return { message: 'Usuario aprobado correctamente' };
   }
 
   findOneByEmail(email: string) {
