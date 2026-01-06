@@ -95,4 +95,8 @@ export class CreateReclamoDto {
   @IsOptional()
   @IsBooleanString()
   posee_art?: string;
+
+  @IsOptional()
+  @IsString()
+  cbu?: string;
 }

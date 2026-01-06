@@ -54,6 +54,7 @@ export class Reclamo {
   @Column({ nullable: true }) hora_hecho: string;
   @Column({ nullable: true }) lugar_hecho: string;
   @Column({ nullable: true }) localidad: string;
+  @Column({ nullable: true }) cbu: string;
 
   // --- ARCHIVOS ---
   @Column() path_dni: string;
@@ -63,6 +64,12 @@ export class Reclamo {
   @Column({ nullable: true }) path_denuncia: string;
   @Column({ nullable: true }) path_fotos: string;
   @Column({ nullable: true }) path_medicos: string;
+
+  @Column({ nullable: true })
+  path_representacion: string; 
+
+  @Column({ nullable: true })
+  path_honorarios: string;
 
   @Column({ default: false }) 
   in_itinere: boolean;

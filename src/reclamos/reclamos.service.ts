@@ -34,17 +34,16 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // 1. CREATE (Con lógica de Referidos y Nuevos Campos)
+  // 1. CREATE
   // ----------------------------------------------------------------------
   async create(dto: CreateReclamoDto, files: any) {
 
     // --- A. VALIDACIÓN LÓGICA ---
     if (!files.fileDNI) throw new BadRequestException('Falta el DNI.');
 
-    // Convertimos los strings 'true'/'false' a booleanos reales
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
-    const inItinere = String(dto.in_itinere) === 'true'; // 👈 NUEVO
-    const poseeArt = String(dto.posee_art) === 'true';   // 👈 NUEVO
+    const inItinere = String(dto.in_itinere) === 'true'; 
+    const poseeArt = String(dto.posee_art) === 'true';   
 
     // Caso: CONDUCTOR
     if (dto.rol_victima === 'Conductor') {
@@ -55,7 +54,6 @@ export class ReclamosService {
           if (!files.fileSeguro) throw new BadRequestException('Falta Certificado de Cobertura.');
           if (!files.fileDenuncia) throw new BadRequestException('Falta Denuncia Administrativa.');
        } else {
-          // Si NO tiene seguro, es obligatorio el relato para generar la carta
           if (!dto.relato_hecho) throw new BadRequestException('Falta el relato de los hechos (Carta No Seguro).');
        }
     } 
@@ -64,18 +62,13 @@ export class ReclamosService {
        if (!files.fileMedicos) throw new BadRequestException('Faltan certificados médicos o historia clínica.');
     }
 
-    // --- 🔍 LÓGICA DE REFERIDOS ---
-    // Buscamos si existe un productor con el ID que viene en codigo_ref
+    // --- LÓGICA DE REFERIDOS ---
     let productor: User | undefined; 
-
     if (dto.codigo_ref) {
       try {
         productor = await this.userRepository.findOne({ where: { id: dto.codigo_ref } }) || undefined; 
-        if (productor) {
-          console.log(`✅ Referido asignado: ${productor.email}`);
-        }
       } catch (error) {
-        console.warn('⚠️ Código de referido inválido o error al buscar:', dto.codigo_ref);
+        console.warn('⚠️ Código de referido inválido:', dto.codigo_ref);
       }
     }
 
@@ -99,7 +92,35 @@ export class ReclamosService {
     const path_fotos = await upload(files.fileFotos?.[0], 'fotos');
     const path_medicos = await upload(files.fileMedicos?.[0], 'medicos');
 
-    // --- C. GENERACIÓN AUTOMÁTICA DE CARTA DE NO SEGURO ---
+    // --- C. GENERACIÓN AUTOMÁTICA DE DOCUMENTOS ---
+    
+    let path_representacion: string | null = null; 
+    try {
+      const pdfRep = await this.pdfService.generarRepresentacion({
+        nombre: dto.nombre,
+        dni: dto.dni,
+        fecha: new Date().toLocaleDateString('es-AR')
+      });
+      const fileRep: any = { buffer: pdfRep, originalname: 'representacion.pdf', mimetype: 'application/pdf', size: pdfRep.length };
+      path_representacion = await this.storageService.uploadFile(fileRep, 'legales', `${dto.dni}-representacion-${timestamp}.pdf`);
+    } catch (e) { 
+        console.error('Error generando Representación:', e); 
+    }
+
+    let path_honorarios: string | null = null;
+    try {
+      const pdfHon = await this.pdfService.generarHonorarios({
+        nombre: dto.nombre,
+        dni: dto.dni,
+        fecha: new Date().toLocaleDateString('es-AR')
+      });
+      const fileHon: any = { buffer: pdfHon, originalname: 'honorarios.pdf', mimetype: 'application/pdf', size: pdfHon.length };
+      path_honorarios = await this.storageService.uploadFile(fileHon, 'legales', `${dto.dni}-honorarios-${timestamp}.pdf`);
+    } catch (e) { 
+        console.error('Error generando Honorarios:', e); 
+    }
+
+    // 3. Carta No Seguro
     if (dto.rol_victima === 'Conductor' && !tieneSeguro) {
       try {
         const pdfBuffer = await this.pdfService.generarCartaNoSeguro({
@@ -117,23 +138,22 @@ export class ReclamosService {
           size: pdfBuffer.length
         };
 
-        const nombreArchivo = `${dto.dni}-carta-generada-${timestamp}.pdf`;
-        const path_generado = await this.storageService.uploadFile(fakeFile, 'legales', nombreArchivo);
-        
+        const path_generado = await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
         path_poliza = path_generado; 
 
       } catch (error) {
-        console.error('Error generando PDF:', error);
+        console.error('Error generando PDF No Seguro:', error);
       }
     }
 
     // --- D. GUARDAR EN BD ---
     const nuevoReclamo = this.reclamoRepository.create({
-      // Datos Texto
       nombre: dto.nombre,
       dni: dto.dni,
       email: dto.email,
       telefono: dto.telefono,
+      cbu: dto.cbu,
+      
       rol_victima: dto.rol_victima,
       aseguradora_tercero: dto.aseguradora_tercero,
       patente_tercero: dto.patente_tercero,
@@ -146,21 +166,19 @@ export class ReclamosService {
       in_itinere: inItinere,
       posee_art: poseeArt,
 
-      // Sistema
       codigo_seguimiento,
       estado: ReclamoEstado.ENVIADO,
-      
-      // Asignación de dueño
       usuario_creador: productor, 
       
-      // Archivos
       path_dni: path_dni!, 
       path_licencia: path_licencia || undefined,
       path_cedula: path_cedula || undefined,
       path_poliza: path_poliza || undefined,
       path_denuncia: path_denuncia || undefined,
       path_fotos: path_fotos || undefined,
-      path_medicos: path_medicos || undefined
+      path_medicos: path_medicos || undefined,
+      path_representacion: path_representacion || undefined,
+      path_honorarios: path_honorarios || undefined
     });
 
     await this.reclamoRepository.save(nuevoReclamo);
@@ -236,7 +254,9 @@ export class ReclamosService {
       'poliza': 'path_poliza',
       'denuncia': 'path_denuncia',
       'fotos': 'path_fotos',
-      'medicos': 'path_medicos'
+      'medicos': 'path_medicos',
+      'representacion': 'path_representacion',
+      'honorarios': 'path_honorarios'
     };
 
     const columnaBd = mapaColumnas[tipoArchivo];
