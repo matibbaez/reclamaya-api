@@ -1,102 +1,55 @@
 import {
-  IsString,
-  IsEmail,
-  IsNotEmpty,
-  MinLength,
-  MaxLength,
-  Matches,
-  IsNumberString,
-  IsOptional,
-  IsBooleanString,
+  IsString, IsEmail, IsNotEmpty, MinLength, MaxLength, Matches,
+  IsNumberString, IsOptional, IsBooleanString,
 } from 'class-validator';
 
 export class CreateReclamoDto {
   
-  // --- DATOS PERSONALES (VALIDACIÓN FUERTE) ---
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(3)
-  @Matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/, {
-    message: 'El nombre solo puede contener letras y espacios',
-  })
+  // --- DATOS PERSONALES ---
+  @IsString() @IsNotEmpty() @MinLength(3)
   nombre: string;
 
-  @IsNotEmpty()
-  @IsNumberString({}, { message: 'El DNI solo puede contener números' })
-  @MinLength(7)
-  @MaxLength(8)
+  @IsNotEmpty() @IsNumberString() @MinLength(7) @MaxLength(8)
   dni: string;
 
-  @IsEmail()
-  @IsNotEmpty()
+  @IsEmail() @IsNotEmpty()
   email: string;
 
-  @IsString()
-  telefono: string; // Agregá esto
+  @IsString() @IsNotEmpty()
+  telefono: string;
 
-  // --- EL NUEVO "TIPO DE TRÁMITE" ---
-  // Importante: En el Frontend asegurate de enviar este dato con la key 'rol_victima'
-  @IsString()
-  @IsNotEmpty()
+  @IsString() @IsNotEmpty()
+  domicilio_usuario: string; // Nuevo: Domicilio real
+
+  @IsString() @IsNotEmpty()
   rol_victima: string; // 'Conductor', 'Acompanante', 'Peaton'
 
-  // --- DATOS DEL SINIESTRO (OPCIONALES EN DTO, OBLIGATORIOS EN SERVICE SEGÚN ROL) ---
+  // --- DATOS DEL SINIESTRO / TERCERO ---
+  @IsOptional() @IsString() codigo_ref?: string;
+  @IsOptional() @IsString() aseguradora_tercero?: string;
+  @IsOptional() @IsString() patente_tercero?: string;
+  @IsOptional() @IsString() tercero_nombre?: string;       // Nuevo
+  @IsOptional() @IsString() tercero_apellido?: string;     // Nuevo
+  @IsOptional() @IsString() tercero_dni?: string;          // Nuevo
+  @IsOptional() @IsString() tercero_marca_modelo?: string; // Nuevo
+
+  @IsOptional() @IsString() patente_propia?: string;
+  @IsOptional() @IsString() relato_hecho?: string;
+
+  // --- FECHA Y LUGAR ---
+  @IsOptional() @IsString() fecha_hecho?: string;
+  @IsOptional() @IsString() hora_hecho?: string; 
+  @IsOptional() @IsString() lugar_hecho?: string;
+  @IsOptional() @IsString() localidad?: string;
+
+  // --- BOOLEANOS (Vienen como string 'true'/'false' del FormData) ---
+  @IsOptional() @IsBooleanString() tiene_seguro?: string; 
+  @IsOptional() @IsBooleanString() in_itinere?: string;
+  @IsOptional() @IsBooleanString() posee_art?: string;
   
-  @IsOptional()
-  @IsString()
-  codigo_ref?: string;
+  @IsOptional() @IsBooleanString() sufrio_lesiones?: string;    // Nuevo
+  @IsOptional() @IsBooleanString() intervino_policia?: string;  // Nuevo
+  @IsOptional() @IsBooleanString() intervino_ambulancia?: string; // Nuevo
 
-  @IsOptional()
-  @IsString()
-  aseguradora_tercero?: string;
-
-  @IsOptional()
-  @IsString()
-  patente_tercero?: string;
-
-  @IsOptional()
-  @IsString()
-  patente_propia?: string;
-
-  @IsOptional()
-  @IsString()
-  relato_hecho?: string;
-
-  // --- DATOS DE FECHA Y LUGAR ---
-  
-  @IsOptional()
-  @IsString()
-  fecha_hecho?: string;
-
-  // (Recibimos la hora como string '14:30')
-  @IsOptional()
-  @IsString()
-  hora_hecho?: string; 
-
-  @IsOptional()
-  @IsString()
-  lugar_hecho?: string;
-
-  @IsOptional()
-  @IsString()
-  localidad?: string;
-
-  // --- SWITCH DE SEGURO ---
-  // Viene como 'true'/'false' string desde el FormData
-  @IsOptional()
-  @IsBooleanString()
-  tiene_seguro?: string; 
-
-  @IsOptional()
-  @IsBooleanString()
-  in_itinere?: string;
-
-  // ART
-  @IsOptional()
-  @IsBooleanString()
-  posee_art?: string;
-
-  @IsOptional()
-  @IsString()
-  cbu?: string;
+  @IsOptional() @IsString() cbu?: string;
 }

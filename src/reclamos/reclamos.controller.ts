@@ -1,17 +1,6 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  UseGuards,
-  UseInterceptors,
-  UploadedFiles,
-  Request,
-  Query,
-  BadRequestException
+  Controller, Get, Post, Body, Patch, Param, Delete, UseGuards,
+  UseInterceptors, UploadedFiles, Request, Query, BadRequestException
 } from '@nestjs/common';
 import { ReclamosService } from './reclamos.service';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
@@ -38,24 +27,32 @@ export class ReclamosController {
   // ------------------------------------------------------------------
   @Post()
   @UseInterceptors(FileFieldsInterceptor([
+    // Archivos existentes
     { name: 'fileDNI', maxCount: 1 },
     { name: 'fileLicencia', maxCount: 1 },
     { name: 'fileCedula', maxCount: 1 },
     { name: 'fileSeguro', maxCount: 1 },
     { name: 'fileDenuncia', maxCount: 1 },
-    { name: 'fileFotos', maxCount: 1 },
-    { name: 'fileMedicos', maxCount: 1 },
+    { name: 'fileFotos', maxCount: 5 }, 
+    { name: 'fileMedicos', maxCount: 1 }, 
+    // Archivos NUEVOS del PDF
+    { name: 'filePresupuesto', maxCount: 1 },   // "Presupuesto o carta de franquicia"
+    { name: 'fileCBU', maxCount: 1 },           // "Comprobante de CBU"
+    { name: 'fileDenunciaPenal', maxCount: 1 }, // "Denuncia Penal"
   ]))
   async create(
     @Body() createReclamoDto: CreateReclamoDto,
     @UploadedFiles() files: { 
       fileDNI?: Express.Multer.File[], 
       fileLicencia?: Express.Multer.File[], 
-      fileCedula?: Express.Multer.File[],
-      fileSeguro?: Express.Multer.File[],
-      fileDenuncia?: Express.Multer.File[],
-      fileFotos?: Express.Multer.File[],
-      fileMedicos?: Express.Multer.File[]
+      fileCedula?: Express.Multer.File[], 
+      fileSeguro?: Express.Multer.File[], 
+      fileDenuncia?: Express.Multer.File[], 
+      fileFotos?: Express.Multer.File[], 
+      fileMedicos?: Express.Multer.File[],
+      filePresupuesto?: Express.Multer.File[],   
+      fileCBU?: Express.Multer.File[],           
+      fileDenunciaPenal?: Express.Multer.File[]  
     }
   ) {
     return this.reclamosService.create(createReclamoDto, files); 

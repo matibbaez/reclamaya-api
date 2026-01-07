@@ -17,12 +17,10 @@ export class Reclamo {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Productor (Quién lo cargó)
   @ManyToOne(() => User, (user) => user.reclamos_cargados, { nullable: true })
   @JoinColumn({ name: 'usuario_creador_id' })
   usuario_creador: User;
 
-  // Tramitador (Quién lo gestiona en el estudio)
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'tramitador_asignado_id' })
   tramitador: User | null;
@@ -30,8 +28,10 @@ export class Reclamo {
   @Column() nombre: string;
   @Column() dni: string;
   @Column() email: string;
-  @Column({ unique: true }) codigo_seguimiento: string;
   @Column({ nullable: true }) telefono: string;
+  @Column({ nullable: true }) domicilio_usuario: string; // Nuevo: Domicilio real (Paso 1)
+
+  @Column({ unique: true }) codigo_seguimiento: string;
 
   @Column({
     type: 'enum',
@@ -45,16 +45,31 @@ export class Reclamo {
   // --- CAMPOS DE TRÁNSITO ---
   @Column() rol_victima: string; 
   
+  // Datos del Tercero (Ampliados para Paso 3)
   @Column({ nullable: true }) aseguradora_tercero: string;
   @Column({ nullable: true }) patente_tercero: string;
+  @Column({ nullable: true }) tercero_nombre: string;       // Nuevo
+  @Column({ nullable: true }) tercero_apellido: string;     // Nuevo
+  @Column({ nullable: true }) tercero_dni: string;          // Nuevo
+  @Column({ nullable: true }) tercero_marca_modelo: string; // Nuevo: "TIPO DE VEHICULO: MARCA-MODELO"
+
   @Column({ nullable: true }) patente_propia: string;
   @Column({ nullable: true, type: 'text' }) relato_hecho: string;
   
   @Column({ nullable: true }) fecha_hecho: string;
   @Column({ nullable: true }) hora_hecho: string;
   @Column({ nullable: true }) lugar_hecho: string;
-  @Column({ nullable: true }) localidad: string;
-  @Column({ nullable: true }) cbu: string;
+  @Column({ nullable: true }) localidad: string; // Localidad del hecho
+  @Column({ nullable: true }) cbu: string;       // Texto del CBU
+
+  // --- PREGUNTAS CLAVE ---
+  @Column({ default: true }) tiene_seguro: boolean;
+  @Column({ default: false }) in_itinere: boolean;
+  @Column({ default: false }) posee_art: boolean;
+  
+  @Column({ default: false }) sufrio_lesiones: boolean;    // Nuevo: "¿SUFRISTE HERIDAS?"
+  @Column({ default: false }) intervino_policia: boolean;  // Nuevo
+  @Column({ default: false }) intervino_ambulancia: boolean; // Nuevo
 
   // --- ARCHIVOS ---
   @Column() path_dni: string;
@@ -64,17 +79,12 @@ export class Reclamo {
   @Column({ nullable: true }) path_denuncia: string;
   @Column({ nullable: true }) path_fotos: string;
   @Column({ nullable: true }) path_medicos: string;
+  
+  // Archivos Nuevos requeridos por PDF
+  @Column({ nullable: true }) path_presupuesto: string;    // "Presupuesto o carta de franquicia"
+  @Column({ nullable: true }) path_cbu_archivo: string;    // "Comprobante de CBU" (Archivo)
+  @Column({ nullable: true }) path_denuncia_penal: string; // "Denuncia Penal"
 
-  @Column({ nullable: true })
-  path_representacion: string; 
-
-  @Column({ nullable: true })
-  path_honorarios: string;
-
-  @Column({ default: false }) 
-  in_itinere: boolean;
-
-  // ¿Tiene ART?
-  @Column({ default: false }) 
-  posee_art: boolean;
+  @Column({ nullable: true }) path_representacion: string; 
+  @Column({ nullable: true }) path_honorarios: string;
 }
