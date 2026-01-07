@@ -60,6 +60,7 @@ export class Reclamo {
   @Column({ nullable: true }) hora_hecho: string;
   @Column({ nullable: true }) lugar_hecho: string;
   @Column({ nullable: true }) localidad: string; // Localidad del hecho
+  @Column({ nullable: true }) provincia: string;
   @Column({ nullable: true }) cbu: string;       // Texto del CBU
 
   // --- PREGUNTAS CLAVE ---

@@ -200,6 +200,7 @@ export class ReclamosService {
       fecha_hecho: dto.fecha_hecho,
       lugar_hecho: dto.lugar_hecho,
       localidad: dto.localidad,
+      provincia: dto.provincia,
       
       // Booleanos
       in_itinere: inItinere,

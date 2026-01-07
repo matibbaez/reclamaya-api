@@ -41,6 +41,7 @@ export class CreateReclamoDto {
   @IsOptional() @IsString() hora_hecho?: string; 
   @IsOptional() @IsString() lugar_hecho?: string;
   @IsOptional() @IsString() localidad?: string;
+  @IsOptional() @IsString() provincia?: string;
 
   // --- BOOLEANOS (Vienen como string 'true'/'false' del FormData) ---
   @IsOptional() @IsBooleanString() tiene_seguro?: string; 
