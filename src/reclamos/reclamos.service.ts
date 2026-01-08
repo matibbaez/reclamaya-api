@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reclamo, ReclamoEstado } from './entities/reclamo.entity';
+import { Reclamo, ReclamoEstado, MensajeReclamo } from './entities/reclamo.entity';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
 import { StorageService } from 'src/storage/storage.service';
 import { randomBytes } from 'crypto';
@@ -10,7 +10,7 @@ import { MailService } from 'src/mail/mail.service';
 import { PdfService } from 'src/common/pdf.service'; 
 import { User, UserRole } from 'src/users/entities/user.entity';
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // Subido a 10MB
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 @Injectable()
@@ -108,11 +108,9 @@ export class ReclamosService {
     // 👇 MANEJO DE MÚLTIPLES FOTOS
     let path_fotos: string[] = [];
     if (files.fileFotos && files.fileFotos.length > 0) {
-        // Subimos todas las fotos en paralelo
         path_fotos = await Promise.all(
             files.fileFotos.map((f: Express.Multer.File) => upload(f, 'fotos'))
         );
-        // Filtramos nulos por si acaso
         path_fotos = path_fotos.filter(p => p !== null) as string[];
     }
 
@@ -213,10 +211,11 @@ export class ReclamosService {
       path_cedula: path_cedula || undefined,
       path_poliza: path_poliza || undefined,
       path_denuncia: path_denuncia || undefined,
-      // 👇 Guardamos el array de fotos (o undefined si está vacío)
-      path_fotos: path_fotos.length > 0 ? path_fotos : undefined,
-      path_medicos: path_medicos || undefined,
       
+      // Array de Fotos
+      path_fotos: path_fotos.length > 0 ? path_fotos : undefined,
+      
+      path_medicos: path_medicos || undefined,
       path_presupuesto: path_presupuesto || undefined,
       path_cbu_archivo: path_cbu_archivo || undefined,
       path_denuncia_penal: path_denuncia_penal || undefined,
@@ -241,7 +240,7 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // RESTO DE MÉTODOS (ASIGNAR, FINDALL, ETC)
+  // ASIGNAR TRAMITADOR
   // ----------------------------------------------------------------------
   async asignarTramitador(reclamoId: string, tramitadorId: string) {
     const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
@@ -264,6 +263,10 @@ export class ReclamosService {
     return this.reclamoRepository.save(reclamo);
   }
 
+  // ----------------------------------------------------------------------
+  // CONSULTAS Y UPDATES
+  // ----------------------------------------------------------------------
+
   async findAll(estado?: string) {
     const where = estado ? { estado: estado as ReclamoEstado } : {};
     return this.reclamoRepository.find({ 
@@ -280,16 +283,21 @@ export class ReclamosService {
         codigo_seguimiento: reclamo.codigo_seguimiento, 
         estado: reclamo.estado, 
         fecha_creacion: reclamo.fecha_creacion,
-        nombre: reclamo.nombre 
+        updatedAt: reclamo['updatedAt'] || null, // Si tenés la columna
+        nombre: reclamo.nombre,
+        mensajes: reclamo.mensajes // Enviamos los mensajes al front
     };
   }
 
   async update(id: string, body: any) {
-    const reclamo = await this.reclamoRepository.findOne({ where: { id } });
+    const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
     if (!reclamo) throw new NotFoundException('No encontrado');
     
+    // Update genérico de campos
+    Object.assign(reclamo, body);
+
+    // Si cambia estado, mandamos mail
     if (body.estado) {
-        reclamo.estado = body.estado as ReclamoEstado;
         this.mailService.sendStatusUpdate(reclamo.email, reclamo.nombre, reclamo.estado).catch(console.error);
     }
     
@@ -297,6 +305,31 @@ export class ReclamosService {
     return reclamo;
   }
 
+  // ----------------------------------------------------------------------
+  // BITÁCORA DE MENSAJES (NUEVO)
+  // ----------------------------------------------------------------------
+  async agregarMensaje(id: string, texto: string) {
+    const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
+    if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
+
+    const nuevoMensaje: MensajeReclamo = {
+      fecha: new Date(),
+      texto: texto,
+      autor: 'Estudio'
+    };
+
+    if (!reclamo.mensajes) {
+      reclamo.mensajes = [nuevoMensaje];
+    } else {
+      reclamo.mensajes.push(nuevoMensaje);
+    }
+
+    return this.reclamoRepository.save(reclamo);
+  }
+
+  // ----------------------------------------------------------------------
+  // DESCARGA DE ARCHIVOS
+  // ----------------------------------------------------------------------
   async getArchivoUrl(reclamoId: string, tipoArchivo: string) {
     const mapaColumnas: Record<string, keyof Reclamo> = {
       'dni': 'path_dni',
@@ -319,16 +352,15 @@ export class ReclamosService {
     const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
     if (!reclamo) throw new NotFoundException(`Reclamo con ID ${reclamoId} no encontrado`);
 
-    const filePath = reclamo[columnaBd];
+    // 🔥 CORRECCIÓN: Casteamos a 'any' para evitar lío de tipos
+    const filePath = reclamo[columnaBd] as any;
     
     if (!filePath) throw new NotFoundException(`El archivo no existe para este reclamo.`);
 
-    // 👇 MANEJO DE ARRAY (Si es 'fotos', devuelve la primera o habría que hacer un zip)
-    // Para simplificar la vista previa del frontend que espera 1 URL:
     let targetPath: string;
     if (Array.isArray(filePath)) {
         if (filePath.length === 0) throw new NotFoundException(`No hay fotos cargadas.`);
-        targetPath = filePath[0]; // Devuelve la primera foto para visualización rápida
+        targetPath = filePath[0]; 
     } else {
         targetPath = filePath as string;
     }

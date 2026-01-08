@@ -130,4 +130,14 @@ export class ReclamosController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string) { return this.reclamosService.remove(id); }
+
+  @Post(':id/mensajes')
+  @UseGuards(JwtAuthGuard)
+  async agregarMensaje(
+    @Param('id') id: string,
+    @Body('texto') texto: string
+  ) {
+    if (!texto) throw new BadRequestException('El mensaje no puede estar vacío');
+    return this.reclamosService.agregarMensaje(id, texto);
+  }
 }

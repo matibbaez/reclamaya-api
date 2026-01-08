@@ -11,6 +11,12 @@ export enum ReclamoEstado {
   RECHAZADO = 'Rechazado',
 }
 
+export interface MensajeReclamo {
+  fecha: Date;
+  texto: string;
+  autor: string;
+}
+
 @Entity('reclamos')
 export class Reclamo {
   
@@ -88,4 +94,7 @@ export class Reclamo {
 
   @Column({ nullable: true }) path_representacion: string; 
   @Column({ nullable: true }) path_honorarios: string;
+
+  @Column("simple-json", { nullable: true })
+  mensajes: MensajeReclamo[];
 }
