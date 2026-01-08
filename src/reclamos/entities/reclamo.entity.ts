@@ -97,4 +97,7 @@ export class Reclamo {
 
   @Column("simple-json", { nullable: true })
   mensajes: MensajeReclamo[];
+
+  @Column("simple-json", { nullable: true })
+  notas_internas: MensajeReclamo[];
 }

@@ -300,16 +300,24 @@ export class ReclamosService {
     });
   }
 
-  async consultarPorCodigo(codigo: string) {
-    const reclamo = await this.reclamoRepository.findOne({ where: { codigo_seguimiento: codigo } });
-    if (!reclamo) throw new NotFoundException('Código no encontrado');
+  async consultarPorCodigo(codigo: string, dni: string) { // 👈 Recibe DNI
+    // Buscamos coincidencia exacta de AMBOS campos
+    const reclamo = await this.reclamoRepository.findOne({ 
+      where: { 
+        codigo_seguimiento: codigo,
+        dni: dni // 👈 Candado de seguridad
+      } 
+    });
+
+    if (!reclamo) throw new NotFoundException('No se encontró un trámite con esos datos. Verificá el Código y tu DNI.');
+
     return { 
         codigo_seguimiento: reclamo.codigo_seguimiento, 
         estado: reclamo.estado, 
         fecha_creacion: reclamo.fecha_creacion,
-        updatedAt: reclamo['updatedAt'] || null, // Si tenés la columna
+        updatedAt: reclamo['updatedAt'] || null,
         nombre: reclamo.nombre,
-        mensajes: reclamo.mensajes // Enviamos los mensajes al front
+        mensajes: reclamo.mensajes,
     };
   }
 
@@ -346,6 +354,25 @@ export class ReclamosService {
       reclamo.mensajes = [nuevoMensaje];
     } else {
       reclamo.mensajes.push(nuevoMensaje);
+    }
+
+    return this.reclamoRepository.save(reclamo);
+  }
+
+  async agregarNotaInterna(id: string, texto: string) {
+    const reclamo = await this.reclamoRepository.findOne({ where: { id } });
+    if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
+
+    const nuevaNota: MensajeReclamo = {
+      fecha: new Date(),
+      texto: texto,
+      autor: 'Interno' // O el nombre del usuario si lo tenés a mano
+    };
+
+    if (!reclamo.notas_internas) {
+      reclamo.notas_internas = [nuevaNota];
+    } else {
+      reclamo.notas_internas.push(nuevaNota);
     }
 
     return this.reclamoRepository.save(reclamo);

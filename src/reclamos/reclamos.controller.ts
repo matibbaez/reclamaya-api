@@ -62,8 +62,14 @@ export class ReclamosController {
   // 2. ENDPOINT: "CONSULTAR TRÁMITE" (PÚBLICO)
   // ------------------------------------------------------------------
   @Get('consultar/:codigo')
-  consultarPorCodigo(@Param('codigo') codigo: string) {
-    return this.reclamosService.consultarPorCodigo(codigo);
+  async consultarEstado(
+    @Param('codigo') codigo: string,
+    @Query('dni') dni: string // 👈 Agregamos esto
+  ) {
+    // Validamos que venga el DNI
+    if (!dni) throw new BadRequestException('El DNI es obligatorio para la consulta.');
+    
+    return this.reclamosService.consultarPorCodigo(codigo, dni);
   }
 
   @Get(':id/galeria')
@@ -145,5 +151,14 @@ export class ReclamosController {
   ) {
     if (!texto) throw new BadRequestException('El mensaje no puede estar vacío');
     return this.reclamosService.agregarMensaje(id, texto);
+  }
+
+  @Post(':id/notas-internas')
+  @UseGuards(JwtAuthGuard)
+  async agregarNotaInterna(
+    @Param('id') id: string,
+    @Body('texto') texto: string
+  ) {
+    return this.reclamosService.agregarNotaInterna(id, texto);
   }
 }
