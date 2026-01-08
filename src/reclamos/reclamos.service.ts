@@ -87,14 +87,19 @@ export class ReclamosService {
     const codigo_seguimiento = randomBytes(3).toString('hex').toUpperCase();
     const timestamp = Date.now();
 
-    const upload = async (file: Express.Multer.File, tag: string) => {
+    // 🔥 CORRECCIÓN AQUÍ: Agregamos el parámetro opcional 'index'
+    const upload = async (file: Express.Multer.File, tag: string, index?: number) => {
       if (!file) return null;
       await this.validateFile(file);
-      const nombre = `${dni}-${tag}-${timestamp}${extname(file.originalname)}`;
+      
+      // Si viene un índice, lo agregamos al nombre para hacerlo único
+      const sufijo = index !== undefined ? `-${index + 1}` : '';
+      const nombre = `${dni}-${tag}-${timestamp}${sufijo}${extname(file.originalname)}`;
+      
       return this.storageService.uploadFile(file, tag, nombre);
     };
 
-    // Subida de archivos individuales
+    // Subida de archivos individuales (sin índice)
     const path_dni = await upload(files.fileDNI[0], 'dni');
     const path_licencia = await upload(files.fileLicencia?.[0], 'licencia');
     const path_cedula = await upload(files.fileCedula?.[0], 'cedula');
@@ -105,11 +110,10 @@ export class ReclamosService {
     const path_cbu_archivo = await upload(files.fileCBU?.[0], 'cbu');
     const path_denuncia_penal = await upload(files.fileDenunciaPenal?.[0], 'legal');
 
-    // 👇 MANEJO DE MÚLTIPLES FOTOS
     let path_fotos: string[] = [];
     if (files.fileFotos && files.fileFotos.length > 0) {
         path_fotos = await Promise.all(
-            files.fileFotos.map((f: Express.Multer.File) => upload(f, 'fotos'))
+            files.fileFotos.map((f: Express.Multer.File, i: number) => upload(f, 'fotos', i)) 
         );
         path_fotos = path_fotos.filter(p => p !== null) as string[];
     }
