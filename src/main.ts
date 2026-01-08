@@ -4,25 +4,27 @@ import { ValidationPipe } from '@nestjs/common';
 import { User, UserRole } from './users/entities/user.entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import helmet from 'helmet'; // 1. IMPORTAR HELMET
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // 2. ACTIVAR SEGURIDAD
+  // 1. ACTIVAR SEGURIDAD
   app.use(helmet()); 
-  app.enableCors(); // En producción (origin: 'https://reclamaya.com.ar')
+  
+  // Habilitar CORS (Vital para que tu Frontend en Hostinger pueda hablar con el Back)
+  app.enableCors(); 
 
-  // 3. VALIDACIÓN ESTRICTA (Fundamental para evitar inyecciones de datos raros)
+  // 2. VALIDACIÓN ESTRICTA
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true, // Elimina propiedades que no estén en el DTO
-    forbidNonWhitelisted: true, // Tira error si mandan algo extra
-    transform: true // Convierte tipos automáticamente (ej. string '10' a number 10)
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true
   }));
 
-  // --- SEED ADMIN (Esto lo dejamos igual) ---
+  // --- SEED ADMIN (Mantenemos tu lógica original) ---
   const usersRepository = app.get(getRepositoryToken(User));
-  const adminEmail = 'admin@estudio.com';
+  const adminEmail = 'admin@estudio.com'; // ⚠️ Asegurate de cambiar la pass luego
   
   const admin = await usersRepository.findOne({ where: { email: adminEmail } });
 
@@ -45,6 +47,12 @@ async function bootstrap() {
   }
   // ----------------------------------
 
-  await app.listen(3000);
+  // 👇 EL CAMBIO PARA RENDER:
+  // Usamos process.env.PORT si existe (Render lo inyecta), sino 3000 (Local).
+  // '0.0.0.0' es obligatorio para que Docker/Render expongan el puerto.
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`🚀 Application is running on: ${await app.getUrl()}`);
 }
 bootstrap();
