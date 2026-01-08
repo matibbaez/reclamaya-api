@@ -78,7 +78,7 @@ export class Reclamo {
   @Column({ nullable: true }) path_cedula: string;
   @Column({ nullable: true }) path_poliza: string;
   @Column({ nullable: true }) path_denuncia: string;
-  @Column({ nullable: true }) path_fotos: string;
+  @Column("simple-array", { nullable: true }) path_fotos: string[];
   @Column({ nullable: true }) path_medicos: string;
   
   // Archivos Nuevos requeridos por PDF

@@ -10,7 +10,7 @@ import { MailService } from 'src/mail/mail.service';
 import { PdfService } from 'src/common/pdf.service'; 
 import { User, UserRole } from 'src/users/entities/user.entity';
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // Subido a 10MB
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 @Injectable()
@@ -41,7 +41,6 @@ export class ReclamosService {
     // --- A. VALIDACIÓN LÓGICA ---
     if (!files.fileDNI) throw new BadRequestException('Falta el DNI (frente y dorso).');
 
-    // Conversión de booleanos que vienen como string desde FormData
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
     const inItinere = String(dto.in_itinere) === 'true'; 
     const poseeArt = String(dto.posee_art) === 'true'; 
@@ -49,7 +48,7 @@ export class ReclamosService {
     const intervinoPolicia = String(dto.intervino_policia) === 'true';
     const intervinoAmbulancia = String(dto.intervino_ambulancia) === 'true';
 
-    // 1. Validación Rol: CONDUCTOR
+    // Validaciones de Rol
     if (dto.rol_victima === 'Conductor') {
        if (!files.fileLicencia) throw new BadRequestException('Falta Licencia de Conducir.');
        if (!files.fileCedula) throw new BadRequestException('Falta Cédula del vehículo.');
@@ -57,25 +56,18 @@ export class ReclamosService {
        if (tieneSeguro) {
           if (!files.fileSeguro) throw new BadRequestException('Falta Certificado de Cobertura.');
           if (!files.fileDenuncia) throw new BadRequestException('Falta Denuncia Administrativa.');
-          // PDF: Presupuesto o carta de franquicia obligatorio si tiene seguro
           if (!files.filePresupuesto) throw new BadRequestException('Falta Presupuesto o Carta de Franquicia.');
        } else {
-          // Si NO tiene seguro
           if (!dto.relato_hecho) throw new BadRequestException('Falta el relato de los hechos (para Carta No Seguro).');
-          // PDF: Datos del tercero obligatorios
           if (!dto.tercero_nombre || !dto.tercero_dni || !dto.tercero_marca_modelo) {
              throw new BadRequestException('Faltan datos del tercero (nombre, dni o vehículo).');
           }
        }
     } 
-    // 2. Validación Rol: PEATÓN O ACOMPAÑANTE
     else {
-       // Por lo general implican lesiones, pedimos médicos
        if (!files.fileMedicos) throw new BadRequestException('Faltan certificados médicos o historia clínica.');
-       // PDF: Pide denuncia penal si existe (opcional en validación estricta, pero ideal tenerlo)
     }
 
-    // 3. Validación Global: SI SUFRIÓ LESIONES
     if (sufrioLesiones && !files.fileMedicos) {
         throw new BadRequestException('Indicó que sufrió lesiones pero no subió certificados médicos.');
     }
@@ -102,23 +94,29 @@ export class ReclamosService {
       return this.storageService.uploadFile(file, tag, nombre);
     };
 
-    // Archivos Estándar
+    // Subida de archivos individuales
     const path_dni = await upload(files.fileDNI[0], 'dni');
     const path_licencia = await upload(files.fileLicencia?.[0], 'licencia');
     const path_cedula = await upload(files.fileCedula?.[0], 'cedula');
     let path_poliza = await upload(files.fileSeguro?.[0], 'poliza'); 
     const path_denuncia = await upload(files.fileDenuncia?.[0], 'denuncia');
-    const path_fotos = await upload(files.fileFotos?.[0], 'fotos');
     const path_medicos = await upload(files.fileMedicos?.[0], 'medicos');
-
-    // Archivos Nuevos (PDF Requerimientos)
     const path_presupuesto = await upload(files.filePresupuesto?.[0], 'presupuesto');
     const path_cbu_archivo = await upload(files.fileCBU?.[0], 'cbu');
     const path_denuncia_penal = await upload(files.fileDenunciaPenal?.[0], 'legal');
 
+    // 👇 MANEJO DE MÚLTIPLES FOTOS
+    let path_fotos: string[] = [];
+    if (files.fileFotos && files.fileFotos.length > 0) {
+        // Subimos todas las fotos en paralelo
+        path_fotos = await Promise.all(
+            files.fileFotos.map((f: Express.Multer.File) => upload(f, 'fotos'))
+        );
+        // Filtramos nulos por si acaso
+        path_fotos = path_fotos.filter(p => p !== null) as string[];
+    }
+
     // --- C. GENERACIÓN AUTOMÁTICA DE DOCUMENTOS ---
-    
-    // 1. Representación
     let path_representacion: string | null = null; 
     try {
       const pdfRep = await this.pdfService.generarRepresentacion({
@@ -132,7 +130,6 @@ export class ReclamosService {
         console.error('Error generando Representación:', e); 
     }
 
-    // 2. Honorarios
     let path_honorarios: string | null = null;
     try {
       const pdfHon = await this.pdfService.generarHonorarios({
@@ -146,7 +143,6 @@ export class ReclamosService {
         console.error('Error generando Honorarios:', e); 
     }
 
-    // 3. Carta No Seguro (Solo si es conductor sin seguro)
     if (dto.rol_victima === 'Conductor' && !tieneSeguro) {
       try {
         const pdfBuffer = await this.pdfService.generarCartaNoSeguro({
@@ -165,7 +161,6 @@ export class ReclamosService {
         };
 
         const path_generado = await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
-        // Usamos el slot de póliza para guardar la carta de no seguro, o podrías crear un campo nuevo
         path_poliza = path_generado; 
 
       } catch (error) {
@@ -180,7 +175,7 @@ export class ReclamosService {
       dni: dto.dni,
       email: dto.email,
       telefono: dto.telefono,
-      domicilio_usuario: dto.domicilio_usuario, // Nuevo campo
+      domicilio_usuario: dto.domicilio_usuario,
       cbu: dto.cbu,
       
       // Datos Siniestro
@@ -189,7 +184,6 @@ export class ReclamosService {
       patente_tercero: dto.patente_tercero,
       patente_propia: dto.patente_propia,
       
-      // Datos Tercero (Nuevos campos)
       tercero_nombre: dto.tercero_nombre,
       tercero_apellido: dto.tercero_apellido,
       tercero_dni: dto.tercero_dni,
@@ -202,28 +196,27 @@ export class ReclamosService {
       localidad: dto.localidad,
       provincia: dto.provincia,
       
-      // Booleanos
       in_itinere: inItinere,
       posee_art: poseeArt,
       tiene_seguro: tieneSeguro,
-      sufrio_lesiones: sufrioLesiones,         // Nuevo
-      intervino_policia: intervinoPolicia,     // Nuevo
-      intervino_ambulancia: intervinoAmbulancia, // Nuevo
+      sufrio_lesiones: sufrioLesiones,
+      intervino_policia: intervinoPolicia,
+      intervino_ambulancia: intervinoAmbulancia,
 
       codigo_seguimiento,
       estado: ReclamoEstado.ENVIADO,
       usuario_creador: productor, 
       
-      // Paths Archivos
+      // Paths
       path_dni: path_dni!, 
       path_licencia: path_licencia || undefined,
       path_cedula: path_cedula || undefined,
       path_poliza: path_poliza || undefined,
       path_denuncia: path_denuncia || undefined,
-      path_fotos: path_fotos || undefined,
+      // 👇 Guardamos el array de fotos (o undefined si está vacío)
+      path_fotos: path_fotos.length > 0 ? path_fotos : undefined,
       path_medicos: path_medicos || undefined,
       
-      // Paths Nuevos
       path_presupuesto: path_presupuesto || undefined,
       path_cbu_archivo: path_cbu_archivo || undefined,
       path_denuncia_penal: path_denuncia_penal || undefined,
@@ -248,7 +241,7 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // ASIGNAR TRAMITADOR
+  // RESTO DE MÉTODOS (ASIGNAR, FINDALL, ETC)
   // ----------------------------------------------------------------------
   async asignarTramitador(reclamoId: string, tramitadorId: string) {
     const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
@@ -264,17 +257,12 @@ export class ReclamosService {
 
     reclamo.tramitador = tramitador;
     
-    // Avanzar estado si estaba solo en enviado
     if (reclamo.estado === ReclamoEstado.ENVIADO) {
       reclamo.estado = ReclamoEstado.RECEPCIONADO;
     }
 
     return this.reclamoRepository.save(reclamo);
   }
-
-  // ----------------------------------------------------------------------
-  // OTROS MÉTODOS
-  // ----------------------------------------------------------------------
 
   async findAll(estado?: string) {
     const where = estado ? { estado: estado as ReclamoEstado } : {};
@@ -304,7 +292,6 @@ export class ReclamosService {
         reclamo.estado = body.estado as ReclamoEstado;
         this.mailService.sendStatusUpdate(reclamo.email, reclamo.nombre, reclamo.estado).catch(console.error);
     }
-    // Aquí podrías agregar lógica para actualizar otros campos si fuera necesario
     
     await this.reclamoRepository.save(reclamo);
     return reclamo;
@@ -321,8 +308,6 @@ export class ReclamosService {
       'medicos': 'path_medicos',
       'representacion': 'path_representacion',
       'honorarios': 'path_honorarios',
-      
-      // Nuevos Mapeos
       'presupuesto': 'path_presupuesto',
       'cbu': 'path_cbu_archivo',
       'legal': 'path_denuncia_penal'
@@ -334,10 +319,21 @@ export class ReclamosService {
     const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
     if (!reclamo) throw new NotFoundException(`Reclamo con ID ${reclamoId} no encontrado`);
 
-    const filePath = reclamo[columnaBd] as string;
+    const filePath = reclamo[columnaBd];
+    
     if (!filePath) throw new NotFoundException(`El archivo no existe para este reclamo.`);
 
-    return this.storageService.createSignedUrl(filePath);
+    // 👇 MANEJO DE ARRAY (Si es 'fotos', devuelve la primera o habría que hacer un zip)
+    // Para simplificar la vista previa del frontend que espera 1 URL:
+    let targetPath: string;
+    if (Array.isArray(filePath)) {
+        if (filePath.length === 0) throw new NotFoundException(`No hay fotos cargadas.`);
+        targetPath = filePath[0]; // Devuelve la primera foto para visualización rápida
+    } else {
+        targetPath = filePath as string;
+    }
+
+    return this.storageService.createSignedUrl(targetPath);
   }
 
   async findOne(id: string) { 
