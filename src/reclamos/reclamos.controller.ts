@@ -66,6 +66,12 @@ export class ReclamosController {
     return this.reclamosService.consultarPorCodigo(codigo);
   }
 
+  @Get(':id/galeria')
+  // @UseGuards(JwtAuthGuard) // Descomentar si usás seguridad
+  async getGaleria(@Param('id') id: string) {
+    return this.reclamosService.getGaleria(id);
+  }
+
   // ------------------------------------------------------------------
   // 3. ENDPOINT: "MIS SINIESTROS" (PRODUCTOR/TRAMITADOR)
   // ------------------------------------------------------------------

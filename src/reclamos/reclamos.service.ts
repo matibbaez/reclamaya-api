@@ -263,6 +263,30 @@ export class ReclamosService {
     return this.reclamoRepository.save(reclamo);
   }
 
+  async getGaleria(id: string) {
+    const reclamo = await this.reclamoRepository.findOne({ where: { id } });
+    if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
+
+    const paths = reclamo.path_fotos; 
+    
+    if (!paths || paths.length === 0) {
+      return { urls: [] };
+    }
+
+    // Generamos las URLs. 'urls' será un array de textos: ['http...', 'http...']
+    const urls = await Promise.all(paths.map(async (p) => {
+      // Casteamos a 'any' por si tu StorageService tiene tipos estrictos que molestan
+      const url = await this.storageService.createSignedUrl(p) as any;
+      
+      // Si por alguna razón tu servicio devuelve un objeto { url: '...' }, usalo.
+      // Pero el error dice que devuelve string, así que devolvemos 'url' directo.
+      return url?.url || url; 
+    }));
+
+    // CORRECCIÓN AQUÍ: Devolvemos el array directo
+    return { urls }; 
+  }
+
   // ----------------------------------------------------------------------
   // CONSULTAS Y UPDATES
   // ----------------------------------------------------------------------
