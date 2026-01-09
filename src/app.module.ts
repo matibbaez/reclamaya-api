@@ -39,7 +39,7 @@ import { User } from './users/entities/user.entity';
         database: configService.get<string>('DB_NAME'),
         
         entities: [Reclamo, User],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        synchronize: true, 
       }),
     }),
 
