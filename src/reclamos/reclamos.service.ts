@@ -34,7 +34,7 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // 1. CREATE
+  // 1. CREATE (OPTIMIZADO CON PARALELISMO)
   // ----------------------------------------------------------------------
   async create(dto: CreateReclamoDto, files: any) {
 
@@ -82,92 +82,107 @@ export class ReclamosService {
       }
     }
 
-    // --- B. SUBIDA DE ARCHIVOS ---
+    // --- B. PREPARACIÓN PARA SUBIDA (Paralelismo) ---
     const { dni } = dto;
     const codigo_seguimiento = randomBytes(3).toString('hex').toUpperCase();
     const timestamp = Date.now();
 
-    // 🔥 CORRECCIÓN AQUÍ: Agregamos el parámetro opcional 'index'
+    // Helper de subida
     const upload = async (file: Express.Multer.File, tag: string, index?: number) => {
       if (!file) return null;
       await this.validateFile(file);
-      
-      // Si viene un índice, lo agregamos al nombre para hacerlo único
+      // Agregamos sufijo si viene índice para evitar colisión de nombres
       const sufijo = index !== undefined ? `-${index + 1}` : '';
       const nombre = `${dni}-${tag}-${timestamp}${sufijo}${extname(file.originalname)}`;
-      
       return this.storageService.uploadFile(file, tag, nombre);
     };
 
-    // Subida de archivos individuales (sin índice)
-    const path_dni = await upload(files.fileDNI[0], 'dni');
-    const path_licencia = await upload(files.fileLicencia?.[0], 'licencia');
-    const path_cedula = await upload(files.fileCedula?.[0], 'cedula');
-    let path_poliza = await upload(files.fileSeguro?.[0], 'poliza'); 
-    const path_denuncia = await upload(files.fileDenuncia?.[0], 'denuncia');
-    const path_medicos = await upload(files.fileMedicos?.[0], 'medicos');
-    const path_presupuesto = await upload(files.filePresupuesto?.[0], 'presupuesto');
-    const path_cbu_archivo = await upload(files.fileCBU?.[0], 'cbu');
-    const path_denuncia_penal = await upload(files.fileDenunciaPenal?.[0], 'legal');
+    // Helper para archivos opcionales únicos
+    const uploadSingle = (fileArray: any[], tag: string) => 
+        (fileArray && fileArray.length > 0) ? upload(fileArray[0], tag) : Promise.resolve(null);
 
-    let path_fotos: string[] = [];
-    if (files.fileFotos && files.fileFotos.length > 0) {
-        path_fotos = await Promise.all(
-            files.fileFotos.map((f: Express.Multer.File, i: number) => upload(f, 'fotos', i)) 
-        );
-        path_fotos = path_fotos.filter(p => p !== null) as string[];
-    }
+    // 🚀 EJECUCIÓN PARALELA DE TODAS LAS SUBIDAS DE USUARIO
+    const [
+      path_dni,
+      path_licencia,
+      path_cedula,
+      path_poliza_uploaded,
+      path_denuncia,
+      path_medicos,
+      path_presupuesto,
+      path_cbu_archivo,
+      path_denuncia_penal,
+      path_fotos_raw
+    ] = await Promise.all([
+      uploadSingle(files.fileDNI, 'dni'),
+      uploadSingle(files.fileLicencia, 'licencia'),
+      uploadSingle(files.fileCedula, 'cedula'),
+      uploadSingle(files.fileSeguro, 'poliza'),
+      uploadSingle(files.fileDenuncia, 'denuncia'),
+      uploadSingle(files.fileMedicos, 'medicos'),
+      uploadSingle(files.filePresupuesto, 'presupuesto'),
+      uploadSingle(files.fileCBU, 'cbu'),
+      uploadSingle(files.fileDenunciaPenal, 'legal'),
+      // Fotos en paralelo con índice
+      files.fileFotos && files.fileFotos.length > 0
+        ? Promise.all(files.fileFotos.map((f: any, i: number) => upload(f, 'fotos', i)))
+        : Promise.resolve([])
+    ]);
 
-    // --- C. GENERACIÓN AUTOMÁTICA DE DOCUMENTOS ---
-    let path_representacion: string | null = null; 
-    try {
-      const pdfRep = await this.pdfService.generarRepresentacion({
-        nombre: dto.nombre,
-        dni: dto.dni,
-        fecha: new Date().toLocaleDateString('es-AR')
-      });
-      const fileRep: any = { buffer: pdfRep, originalname: 'representacion.pdf', mimetype: 'application/pdf', size: pdfRep.length };
-      path_representacion = await this.storageService.uploadFile(fileRep, 'legales', `${dto.dni}-representacion-${timestamp}.pdf`);
-    } catch (e) { 
-        console.error('Error generando Representación:', e); 
-    }
+    // Limpieza de array de fotos
+    const path_fotos = (path_fotos_raw as string[]).filter(p => p !== null);
+    let path_poliza = path_poliza_uploaded;
 
-    let path_honorarios: string | null = null;
-    try {
-      const pdfHon = await this.pdfService.generarHonorarios({
-        nombre: dto.nombre,
-        dni: dto.dni,
-        fecha: new Date().toLocaleDateString('es-AR')
-      });
-      const fileHon: any = { buffer: pdfHon, originalname: 'honorarios.pdf', mimetype: 'application/pdf', size: pdfHon.length };
-      path_honorarios = await this.storageService.uploadFile(fileHon, 'legales', `${dto.dni}-honorarios-${timestamp}.pdf`);
-    } catch (e) { 
-        console.error('Error generando Honorarios:', e); 
-    }
+    // --- C. GENERACIÓN Y SUBIDA DE PDFs AUTOMÁTICOS (Paralelismo) ---
+    
+    // 1. Promesa Representación
+    const representacionTask = async () => {
+        try {
+            const pdfRep = await this.pdfService.generarRepresentacion({
+                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR')
+            });
+            const fileRep: any = { buffer: pdfRep, originalname: 'representacion.pdf', mimetype: 'application/pdf', size: pdfRep.length };
+            return await this.storageService.uploadFile(fileRep, 'legales', `${dto.dni}-representacion-${timestamp}.pdf`);
+        } catch (e) { console.error('Error Rep:', e); return null; }
+    };
 
-    if (dto.rol_victima === 'Conductor' && !tieneSeguro) {
-      try {
-        const pdfBuffer = await this.pdfService.generarCartaNoSeguro({
-          nombre: dto.nombre,
-          dni: dto.dni,
-          fecha: dto.fecha_hecho || new Date().toISOString().split('T')[0],
-          lugar: dto.lugar_hecho || 'No especificado',
-          relato: dto.relato_hecho || ''
-        });
+    // 2. Promesa Honorarios
+    const honorariosTask = async () => {
+        try {
+            const pdfHon = await this.pdfService.generarHonorarios({
+                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR')
+            });
+            const fileHon: any = { buffer: pdfHon, originalname: 'honorarios.pdf', mimetype: 'application/pdf', size: pdfHon.length };
+            return await this.storageService.uploadFile(fileHon, 'legales', `${dto.dni}-honorarios-${timestamp}.pdf`);
+        } catch (e) { console.error('Error Hon:', e); return null; }
+    };
 
-        const fakeFile: any = {
-          buffer: pdfBuffer,
-          originalname: `carta-no-seguro-${dto.dni}.pdf`,
-          mimetype: 'application/pdf',
-          size: pdfBuffer.length
-        };
+    // 3. Promesa Carta No Seguro (Condicional)
+    const noSeguroTask = async () => {
+        if (dto.rol_victima === 'Conductor' && !tieneSeguro) {
+            try {
+                const pdfBuffer = await this.pdfService.generarCartaNoSeguro({
+                    nombre: dto.nombre, dni: dto.dni,
+                    fecha: dto.fecha_hecho || new Date().toISOString().split('T')[0],
+                    lugar: dto.lugar_hecho || 'No especificado', relato: dto.relato_hecho || ''
+                });
+                const fakeFile: any = { buffer: pdfBuffer, originalname: `carta-no-seguro-${dto.dni}.pdf`, mimetype: 'application/pdf', size: pdfBuffer.length };
+                return await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
+            } catch (e) { console.error('Error NoSeguro:', e); return null; }
+        }
+        return null;
+    };
 
-        const path_generado = await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
-        path_poliza = path_generado; 
+    // 🚀 EJECUCIÓN PARALELA DE PDFs
+    const [path_representacion, path_honorarios, path_generado_noseguro] = await Promise.all([
+        representacionTask(),
+        honorariosTask(),
+        noSeguroTask()
+    ]);
 
-      } catch (error) {
-        console.error('Error generando PDF No Seguro:', error);
-      }
+    // Si se generó carta de no seguro, reemplaza a la póliza
+    if (path_generado_noseguro) {
+        path_poliza = path_generado_noseguro;
     }
 
     // --- D. GUARDAR EN BD ---
@@ -277,17 +292,11 @@ export class ReclamosService {
       return { urls: [] };
     }
 
-    // Generamos las URLs. 'urls' será un array de textos: ['http...', 'http...']
     const urls = await Promise.all(paths.map(async (p) => {
-      // Casteamos a 'any' por si tu StorageService tiene tipos estrictos que molestan
       const url = await this.storageService.createSignedUrl(p) as any;
-      
-      // Si por alguna razón tu servicio devuelve un objeto { url: '...' }, usalo.
-      // Pero el error dice que devuelve string, así que devolvemos 'url' directo.
       return url?.url || url; 
     }));
 
-    // CORRECCIÓN AQUÍ: Devolvemos el array directo
     return { urls }; 
   }
 
@@ -304,12 +313,11 @@ export class ReclamosService {
     });
   }
 
-  async consultarPorCodigo(codigo: string, dni: string) { // 👈 Recibe DNI
-    // Buscamos coincidencia exacta de AMBOS campos
+  async consultarPorCodigo(codigo: string, dni: string) { 
     const reclamo = await this.reclamoRepository.findOne({ 
       where: { 
         codigo_seguimiento: codigo,
-        dni: dni // 👈 Candado de seguridad
+        dni: dni 
       } 
     });
 
@@ -329,10 +337,8 @@ export class ReclamosService {
     const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
     if (!reclamo) throw new NotFoundException('No encontrado');
     
-    // Update genérico de campos
     Object.assign(reclamo, body);
 
-    // Si cambia estado, mandamos mail
     if (body.estado) {
         this.mailService.sendStatusUpdate(reclamo.email, reclamo.nombre, reclamo.estado).catch(console.error);
     }
@@ -342,7 +348,7 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // BITÁCORA DE MENSAJES (NUEVO)
+  // BITÁCORA DE MENSAJES
   // ----------------------------------------------------------------------
   async agregarMensaje(id: string, texto: string) {
     const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
@@ -370,7 +376,7 @@ export class ReclamosService {
     const nuevaNota: MensajeReclamo = {
       fecha: new Date(),
       texto: texto,
-      autor: 'Interno' // O el nombre del usuario si lo tenés a mano
+      autor: 'Interno'
     };
 
     if (!reclamo.notas_internas) {
@@ -407,7 +413,6 @@ export class ReclamosService {
     const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
     if (!reclamo) throw new NotFoundException(`Reclamo con ID ${reclamoId} no encontrado`);
 
-    // 🔥 CORRECCIÓN: Casteamos a 'any' para evitar lío de tipos
     const filePath = reclamo[columnaBd] as any;
     
     if (!filePath) throw new NotFoundException(`El archivo no existe para este reclamo.`);
