@@ -42,6 +42,7 @@ export class ReclamosService {
     if (!files.fileDNI) throw new BadRequestException('Falta el DNI (frente y dorso).');
 
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
+    const hizoDenuncia = String(dto.hizo_denuncia) === 'true';
     const inItinere = String(dto.in_itinere) === 'true'; 
     const poseeArt = String(dto.posee_art) === 'true'; 
     const sufrioLesiones = String(dto.sufrio_lesiones) === 'true';
@@ -216,6 +217,7 @@ export class ReclamosService {
       in_itinere: inItinere,
       posee_art: poseeArt,
       tiene_seguro: tieneSeguro,
+      hizo_denuncia: hizoDenuncia,
       sufrio_lesiones: sufrioLesiones,
       intervino_policia: intervinoPolicia,
       intervino_ambulancia: intervinoAmbulancia,

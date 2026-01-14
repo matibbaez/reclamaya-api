@@ -54,10 +54,10 @@ export class Reclamo {
   // Datos del Tercero (Ampliados para Paso 3)
   @Column({ nullable: true }) aseguradora_tercero: string;
   @Column({ nullable: true }) patente_tercero: string;
-  @Column({ nullable: true }) tercero_nombre: string;       // Nuevo
-  @Column({ nullable: true }) tercero_apellido: string;     // Nuevo
-  @Column({ nullable: true }) tercero_dni: string;          // Nuevo
-  @Column({ nullable: true }) tercero_marca_modelo: string; // Nuevo: "TIPO DE VEHICULO: MARCA-MODELO"
+  @Column({ nullable: true }) tercero_nombre: string;       
+  @Column({ nullable: true }) tercero_apellido: string;     
+  @Column({ nullable: true }) tercero_dni: string;          
+  @Column({ nullable: true }) tercero_marca_modelo: string; 
 
   @Column({ nullable: true }) patente_propia: string;
   @Column({ nullable: true, type: 'text' }) relato_hecho: string;
@@ -65,18 +65,19 @@ export class Reclamo {
   @Column({ nullable: true }) fecha_hecho: string;
   @Column({ nullable: true }) hora_hecho: string;
   @Column({ nullable: true }) lugar_hecho: string;
-  @Column({ nullable: true }) localidad: string; // Localidad del hecho
+  @Column({ nullable: true }) localidad: string; 
   @Column({ nullable: true }) provincia: string;
-  @Column({ nullable: true }) cbu: string;       // Texto del CBU
+  @Column({ nullable: true }) cbu: string;       
 
   // --- PREGUNTAS CLAVE ---
   @Column({ default: true }) tiene_seguro: boolean;
+  @Column({ default: false }) hizo_denuncia: boolean;
   @Column({ default: false }) in_itinere: boolean;
   @Column({ default: false }) posee_art: boolean;
   
-  @Column({ default: false }) sufrio_lesiones: boolean;    // Nuevo: "¿SUFRISTE HERIDAS?"
-  @Column({ default: false }) intervino_policia: boolean;  // Nuevo
-  @Column({ default: false }) intervino_ambulancia: boolean; // Nuevo
+  @Column({ default: false }) sufrio_lesiones: boolean;    
+  @Column({ default: false }) intervino_policia: boolean;  
+  @Column({ default: false }) intervino_ambulancia: boolean;
 
   // --- ARCHIVOS ---
   @Column() path_dni: string;
@@ -88,9 +89,9 @@ export class Reclamo {
   @Column({ nullable: true }) path_medicos: string;
   
   // Archivos Nuevos requeridos por PDF
-  @Column({ nullable: true }) path_presupuesto: string;    // "Presupuesto o carta de franquicia"
-  @Column({ nullable: true }) path_cbu_archivo: string;    // "Comprobante de CBU" (Archivo)
-  @Column({ nullable: true }) path_denuncia_penal: string; // "Denuncia Penal"
+  @Column({ nullable: true }) path_presupuesto: string;    
+  @Column({ nullable: true }) path_cbu_archivo: string;    
+  @Column({ nullable: true }) path_denuncia_penal: string; 
 
   @Column({ nullable: true }) path_representacion: string; 
   @Column({ nullable: true }) path_honorarios: string;

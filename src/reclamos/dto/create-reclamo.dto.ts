@@ -45,6 +45,7 @@ export class CreateReclamoDto {
 
   // --- BOOLEANOS (Vienen como string 'true'/'false' del FormData) ---
   @IsOptional() @IsBooleanString() tiene_seguro?: string; 
+  @IsOptional() @IsBooleanString() hizo_denuncia?: string;
   @IsOptional() @IsBooleanString() in_itinere?: string;
   @IsOptional() @IsBooleanString() posee_art?: string;
   
