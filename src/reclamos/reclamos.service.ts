@@ -87,6 +87,8 @@ export class ReclamosService {
     const { dni } = dto;
     const codigo_seguimiento = randomBytes(3).toString('hex').toUpperCase();
     const timestamp = Date.now();
+    const firmaFile = (files.fileFirma && files.fileFirma.length > 0) ? files.fileFirma[0] : null;
+    const firmaBuffer = firmaFile ? firmaFile.buffer : undefined; // Buffer para incrustar
 
     // Helper de subida
     const upload = async (file: Express.Multer.File, tag: string, index?: number) => {
@@ -113,7 +115,8 @@ export class ReclamosService {
       path_presupuesto,
       path_cbu_archivo,
       path_denuncia_penal,
-      path_fotos_raw
+      path_fotos_raw,
+      path_firma_archivo
     ] = await Promise.all([
       uploadSingle(files.fileDNI, 'dni'),
       uploadSingle(files.fileLicencia, 'licencia'),
@@ -127,7 +130,8 @@ export class ReclamosService {
       // Fotos en paralelo con índice
       files.fileFotos && files.fileFotos.length > 0
         ? Promise.all(files.fileFotos.map((f: any, i: number) => upload(f, 'fotos', i)))
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      uploadSingle(files.fileFirma, 'firmas')
     ]);
 
     // Limpieza de array de fotos
@@ -140,7 +144,8 @@ export class ReclamosService {
     const representacionTask = async () => {
         try {
             const pdfRep = await this.pdfService.generarRepresentacion({
-                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR')
+                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR'),
+                firma: firmaBuffer
             });
             const fileRep: any = { buffer: pdfRep, originalname: 'representacion.pdf', mimetype: 'application/pdf', size: pdfRep.length };
             return await this.storageService.uploadFile(fileRep, 'legales', `${dto.dni}-representacion-${timestamp}.pdf`);
@@ -151,7 +156,8 @@ export class ReclamosService {
     const honorariosTask = async () => {
         try {
             const pdfHon = await this.pdfService.generarHonorarios({
-                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR')
+                nombre: dto.nombre, dni: dto.dni, fecha: new Date().toLocaleDateString('es-AR'),
+                firma: firmaBuffer 
             });
             const fileHon: any = { buffer: pdfHon, originalname: 'honorarios.pdf', mimetype: 'application/pdf', size: pdfHon.length };
             return await this.storageService.uploadFile(fileHon, 'legales', `${dto.dni}-honorarios-${timestamp}.pdf`);
@@ -165,7 +171,8 @@ export class ReclamosService {
                 const pdfBuffer = await this.pdfService.generarCartaNoSeguro({
                     nombre: dto.nombre, dni: dto.dni,
                     fecha: dto.fecha_hecho || new Date().toISOString().split('T')[0],
-                    lugar: dto.lugar_hecho || 'No especificado', relato: dto.relato_hecho || ''
+                    lugar: dto.lugar_hecho || 'No especificado', relato: dto.relato_hecho || '',
+                    firma: firmaBuffer
                 });
                 const fakeFile: any = { buffer: pdfBuffer, originalname: `carta-no-seguro-${dto.dni}.pdf`, mimetype: 'application/pdf', size: pdfBuffer.length };
                 return await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
@@ -336,19 +343,57 @@ export class ReclamosService {
   }
 
   async update(id: string, body: any) {
-    const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
+    const reclamo = await this.reclamoRepository.findOne({ 
+        where: { id }, 
+        relations: ['tramitador', 'usuario_creador', 'usuario_creador.referidoPor'] 
+    });
+    
     if (!reclamo) throw new NotFoundException('No encontrado');
     
-    Object.assign(reclamo, body);
+    const estadoAnterior = reclamo.estado;
 
-    if (body.estado) {
-        this.mailService.sendStatusUpdate(reclamo.email, reclamo.nombre, reclamo.estado).catch(console.error);
+    Object.assign(reclamo, body);
+    
+    const actualizado = await this.reclamoRepository.save(reclamo);
+
+    // 👇 AQUÍ ESTÁ LA MAGIA DE LA NOTIFICACIÓN DIFERENCIADA
+    if (body.estado && body.estado !== estadoAnterior) {
+        
+        // 1. Notificar al CLIENTE (Asegurado)
+        this.mailService.sendClientStatusUpdate(
+            reclamo.email, 
+            reclamo.nombre, 
+            reclamo.estado, 
+            reclamo.codigo_seguimiento
+        ).catch(e => console.error('Error mail cliente:', e));
+
+        // 2. Notificar al PRODUCTOR (Si existe)
+        if (reclamo.usuario_creador) {
+            this.mailService.sendProducerStatusUpdate(
+                reclamo.usuario_creador.email, 
+                reclamo.usuario_creador.nombre, // Nombre Productor
+                reclamo.estado,
+                reclamo.codigo_seguimiento,
+                reclamo.nombre // Nombre Cliente (para que el productor sepa de quién hablan)
+            ).catch(e => console.error('Error mail productor:', e));
+
+            // 3. Notificar al BROKER (Si el productor tiene jefe)
+            if (reclamo.usuario_creador.referidoPor) {
+                this.mailService.sendBrokerStatusUpdate(
+                    reclamo.usuario_creador.referidoPor.email, 
+                    reclamo.usuario_creador.referidoPor.nombre, // Nombre Broker
+                    reclamo.estado,
+                    reclamo.codigo_seguimiento,
+                    reclamo.usuario_creador.nombre, // "Tu productor X tuvo una novedad"
+                    reclamo.nombre // Nombre Cliente
+                ).catch(e => console.error('Error mail broker:', e));
+            }
+        }
     }
     
-    await this.reclamoRepository.save(reclamo);
-    return reclamo;
+    return actualizado;
   }
-
+  
   // ----------------------------------------------------------------------
   // BITÁCORA DE MENSAJES
   // ----------------------------------------------------------------------
@@ -445,10 +490,17 @@ export class ReclamosService {
   async findAllByUser(userId: string) {
     return this.reclamoRepository.find({
       where: [
+        // 1. Casos creados directamente por mí (Productor o Broker cargando personal)
         { usuario_creador: { id: userId } },
-        { tramitador: { id: userId } }
+        
+        // 2. Casos donde soy el Tramitador asignado (si aplica)
+        { tramitador: { id: userId } },
+
+        // 3. 👇 LA CLAVE: Casos creados por usuarios que me tienen como referente (Mis Productores)
+        { usuario_creador: { referidoPor: { id: userId } } } 
       ],
       order: { fecha_creacion: 'DESC' },
+      // Es vital traer la relación 'usuario_creador' para mostrar el nombre en el front
       relations: ['usuario_creador', 'tramitador'] 
     });
   }

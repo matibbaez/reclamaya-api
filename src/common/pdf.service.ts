@@ -5,50 +5,51 @@ import PDFDocument from 'pdfkit'; // <--- CAMBIO CLAVE: Sin el "* as"
 export class PdfService {
 
   // Genera la "Carta de No Seguro"
-  async generarCartaNoSeguro(datos: { nombre: string; dni: string; fecha: string; relato: string; lugar: string }): Promise<Buffer> {
+  async generarCartaNoSeguro(datos: { nombre: string; dni: string; fecha: string; relato: string; lugar: string; firma?: Buffer }): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      // Creamos el documento
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
       const buffers: Buffer[] = [];
 
-      // Capturamos los datos en un buffer
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // --- ENCABEZADO ---
       doc.font('Helvetica-Bold').fontSize(14).text('DECLARACIÓN JURADA - INEXISTENCIA DE SEGURO', { align: 'center' });
       doc.moveDown(2);
 
-      // --- CUERPO ---
       doc.font('Helvetica').fontSize(12).text(`Buenos Aires, ${new Date().toLocaleDateString('es-AR')}`, { align: 'right' });
       doc.moveDown(2);
 
-      doc.text(`Por la presente, yo, ${datos.nombre}, titular del DNI Nº ${datos.dni}, declaro bajo juramento que al momento del siniestro ocurrido el día ${datos.fecha} en ${datos.lugar}, mi vehículo NO poseía cobertura de seguro vigente.`, {
-        align: 'justify',
-        lineGap: 5
-      });
+      doc.text(`Por la presente, yo, ${datos.nombre}, titular del DNI Nº ${datos.dni}, declaro bajo juramento que al momento del siniestro ocurrido el día ${datos.fecha} en ${datos.lugar}, mi vehículo NO poseía cobertura de seguro vigente.`, { align: 'justify', lineGap: 5 });
       
       doc.moveDown();
       doc.text('Asimismo, describo los hechos ocurridos de la siguiente manera:', { align: 'left' });
       doc.moveDown();
       
-      // Relato (En cursiva)
       doc.font('Helvetica-Oblique').text(`"${datos.relato}"`, { align: 'justify' });
       
       doc.moveDown(4);
 
-      // --- PIE DE FIRMA ---
+      // 1. DIBUJAMOS LA LÍNEA PRIMERO (para tener la referencia Y)
+      const lineaY = doc.y; // Guardamos la altura actual
       doc.text('__________________________', { align: 'center' });
-      doc.text('Firma del Declarante', { align: 'center' });
+      
+      // 2. ESTAMPAMOS LA FIRMA "ENCIMA" (Subimos 50px respecto a la línea)
+      if (datos.firma) {
+          // (doc.page.width / 2) - 60  -> Centrado horizontal (ancho imagen 120 / 2 = 60)
+          // lineaY - 40                -> La subimos 40px para que se apoye sobre la línea
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+      }
+
+      // 3. TEXTOS DEBAJO (Nombre, DNI)
+      doc.text('Firma del Solicitante', { align: 'center' });
       doc.text(`DNI: ${datos.dni}`, { align: 'center' });
 
-      // Cerramos el documento
       doc.end();
     });
   }
 
-  async generarRepresentacion(datos: { nombre: string; dni: string; fecha: string }): Promise<Buffer> {
+  async generarRepresentacion(datos: { nombre: string; dni: string; fecha: string; firma?: Buffer }): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
       const buffers: Buffer[] = [];
@@ -69,7 +70,19 @@ export class PdfService {
       doc.text('Faculto a los mismos para presentar documentación, realizar denuncias, tramitar el reclamo y percibir indemnizaciones.', { align: 'justify', lineGap: 5 });
 
       doc.moveDown(4);
+
+      // 1. DIBUJAMOS LA LÍNEA PRIMERO (para tener la referencia Y)
+      const lineaY = doc.y; // Guardamos la altura actual
       doc.text('__________________________', { align: 'center' });
+      
+      // 2. ESTAMPAMOS LA FIRMA "ENCIMA" (Subimos 50px respecto a la línea)
+      if (datos.firma) {
+          // (doc.page.width / 2) - 60  -> Centrado horizontal (ancho imagen 120 / 2 = 60)
+          // lineaY - 40                -> La subimos 40px para que se apoye sobre la línea
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+      }
+
+      // 3. TEXTOS DEBAJO (Nombre, DNI)
       doc.text('Firma del Solicitante', { align: 'center' });
       doc.text(`DNI: ${datos.dni}`, { align: 'center' });
 
@@ -77,7 +90,7 @@ export class PdfService {
     });
   }
 
-  async generarHonorarios(datos: { nombre: string; dni: string; fecha: string }): Promise<Buffer> {
+  async generarHonorarios(datos: { nombre: string; dni: string; fecha: string; firma?: Buffer }): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
       const buffers: Buffer[] = [];
@@ -101,8 +114,21 @@ export class PdfService {
       doc.text('TERCERO: En caso de no obtenerse indemnización alguna, el cliente no deberá abonar honorarios (resultado negativo).', { align: 'justify', lineGap: 5 });
 
       doc.moveDown(4);
+
+      // 1. DIBUJAMOS LA LÍNEA PRIMERO (para tener la referencia Y)
+      const lineaY = doc.y; // Guardamos la altura actual
       doc.text('__________________________', { align: 'center' });
-      doc.text('Firma - Conformidad Cliente', { align: 'center' });
+      
+      // 2. ESTAMPAMOS LA FIRMA "ENCIMA" (Subimos 50px respecto a la línea)
+      if (datos.firma) {
+          // (doc.page.width / 2) - 60  -> Centrado horizontal (ancho imagen 120 / 2 = 60)
+          // lineaY - 40                -> La subimos 40px para que se apoye sobre la línea
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+      }
+
+      // 3. TEXTOS DEBAJO (Nombre, DNI)
+      doc.text('Firma del Solicitante', { align: 'center' });
+      doc.text(`DNI: ${datos.dni}`, { align: 'center' });
 
       doc.end();
     });

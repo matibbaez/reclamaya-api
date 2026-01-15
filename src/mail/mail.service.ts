@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 import { ConfigService } from '@nestjs/config';
-// Importamos el Enum para saber qué texto mandar
 import { ReclamoEstado } from '../reclamos/entities/reclamo.entity';
 
 @Injectable()
@@ -9,7 +8,6 @@ export class MailService {
   private resend: Resend;
 
   constructor(private configService: ConfigService) {
-    // Si no hay API KEY, no explota, pero avisa en consola
     const apiKey = this.configService.get('RESEND_API_KEY');
     if (apiKey) {
       this.resend = new Resend(apiKey);
@@ -18,37 +16,35 @@ export class MailService {
     }
   }
 
-  // 1. MAIL DE BIENVENIDA (ESTADO: ENVIADO)
+  // ==========================================
+  // 1. MAILS INICIALES (ALTA DE RECLAMO)
+  // ==========================================
+
+  // Para el Cliente (Confirmación de envío)
   async sendNewReclamoClient(email: string, nombre: string, codigo: string) {
     if (!this.resend) return;
-
-    await this.resend.emails.send({
-      from: 'Reclama Ya <onboarding@resend.dev>', // Cuando tengas dominio, ponés 'consultas@reclamaya.com'
-      to: email,
-      subject: 'Reclamo Enviado - Reclama Ya',
-      html: `
-        <h1>¡Hola ${nombre}!</h1>
-        <p>Gracias por confiar en <strong>Reclama Ya</strong>.</p>
-        <p>Hemos recibido su reclamo y ya fue derivado a nuestro equipo.</p>
-        <p>Dentro de las próximas <strong>72 horas hábiles</strong>, un tramitador será asignado para comenzar a trabajar en su caso.</p>
-        <hr>
-        <p><strong>Su Código de Seguimiento:</strong> ${codigo}</p>
-        <p>Puede consultar el estado de su trámite en nuestra web con este código.</p>
-        <br>
-        <p>Atentamente,<br>Equipo ReclamaYa!</p>
-      `,
-    });
+    await this.sendMail(email, 'Reclamo Enviado - Reclama Ya', `
+        <div style="font-family: Arial, sans-serif; color: #333;">
+          <h1>¡Hola ${nombre}!</h1>
+          <p>Gracias por confiar en <strong>Reclama Ya</strong>.</p>
+          <p>Hemos recibido su reclamo y ya fue derivado a nuestro equipo.</p>
+          <p>Dentro de las próximas <strong>72 horas hábiles</strong>, un tramitador será asignado para comenzar a trabajar en su caso.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 18px;"><strong>Su Código de Seguimiento:</strong> <span style="color: #3b82f6;">${codigo}</span></p>
+          <p>Puede consultar el estado de su trámite en nuestra web con este código.</p>
+          <br>
+          <p style="color: #666; font-size: 12px;">Atentamente,<br>Equipo ReclamaYa!</p>
+        </div>
+    `);
   }
 
-  // 2. NOTIFICACIÓN AL ADMIN (PARA MARCO/AGUSTIN)
+  // Para el Admin (Alerta de nuevo caso)
   async sendNewReclamoAdmin(data: { nombre: string; dni: string; codigo_seguimiento: string; tipo: string }) {
     if (!this.resend) return;
-
-    await this.resend.emails.send({
-      from: 'Sistema <onboarding@resend.dev>',
-      to: 'mfbcaneda@gmail.com', // ¡PONÉ ACÁ EL MAIL DE ELLOS!
-      subject: `🚨 Nuevo Reclamo: ${data.tipo} - ${data.nombre}`,
-      html: `
+    // IMPORTANTE: Cambiá este mail por el real de Marco/Agustín cuando vayas a prod
+    const adminEmail = 'mfbcaneda@gmail.com'; 
+    
+    await this.sendMail(adminEmail, `🚨 Nuevo Reclamo: ${data.tipo}`, `
         <h3>Nuevo Siniestro Ingresado</h3>
         <ul>
           <li><strong>Cliente:</strong> ${data.nombre}</li>
@@ -57,18 +53,19 @@ export class MailService {
           <li><strong>Código:</strong> ${data.codigo_seguimiento}</li>
         </ul>
         <p>Ingresá al panel para asignar un tramitador.</p>
-      `,
-    });
+    `);
   }
 
-  // 3. EL CEREBRO: NOTIFICACIONES DE CAMBIO DE ESTADO (AUTOMÁTICO)
-  async sendStatusUpdate(email: string, nombre: string, nuevoEstado: ReclamoEstado) {
+  // ==========================================
+  // 2. ACTUALIZACIÓN DE ESTADO: CLIENTE (Explicativo)
+  // ==========================================
+  async sendClientStatusUpdate(email: string, nombre: string, nuevoEstado: ReclamoEstado, codigo: string) {
     if (!this.resend) return;
 
     let subject = '';
     let body = '';
 
-    // LÓGICA DE TEXTOS SEGÚN PDF "Emails 2.pdf"
+    // Textos explicativos según PDF para el CLIENTE
     switch (nuevoEstado) {
       case ReclamoEstado.RECEPCIONADO:
         subject = 'Reclamo Recepcionado - Reclama Ya';
@@ -79,7 +76,6 @@ export class MailService {
             <li>Si el reclamo no es viable, le informaremos el rechazo.</li>
             <li>Si es viable, en 48hs hábiles lo iniciaremos ante la aseguradora.</li>
           </ul>
-          <p>Lo mantendremos informado.</p>
         `;
         break;
 
@@ -88,7 +84,6 @@ export class MailService {
         body = `
           <p>Su reclamo fue <strong>iniciado correctamente</strong> ante la aseguradora.</p>
           <p>A partir de ahora iniciamos las comunicaciones oficiales. La aseguradora analizará las pruebas y pericias antes de hacer una oferta.</p>
-          <p>Nos aseguraremos de que cada paso se realice de forma rápida y segura.</p>
         `;
         break;
 
@@ -106,68 +101,144 @@ export class MailService {
         body = `
           <p><strong>El acuerdo ya fue cerrado exitosamente.</strong></p>
           <p>En un plazo máximo de <strong>30 días hábiles</strong>, el monto acordado se acreditará en su cuenta bancaria.</p>
-          <p>Una vez efectuado el pago, se finiquitarán los honorarios profesionales (20%).</p>
-          <p>¡Gracias por su confianza!</p>
+          <p>Una vez efectuado el pago, se finiquitarán los honorarios profesionales.</p>
         `;
         break;
 
-      case ReclamoEstado.INDEMNIZADO: // Final Feliz
+      case ReclamoEstado.INDEMNIZADO:
         subject = '¡Felicitaciones! Reclamo Cobrado';
         body = `
           <p><strong>Su reclamo fue acordado y cobrado exitosamente.</strong></p>
           <p>Gracias por confiar en Reclama Ya para acompañarlo en este proceso.</p>
-          <p>Recuerde que estamos a su disposición para cualquier gestión futura.</p>
         `;
         break;
 
-      case ReclamoEstado.RECHAZADO: // Final Triste
+      case ReclamoEstado.RECHAZADO:
         subject = 'Actualización sobre su reclamo';
         body = `
           <p>Lamentamos informarle que, tras el análisis de nuestro equipo legal, su reclamo fue <strong>rechazado por improcedencia legal</strong>.</p>
-          <p>Si desea más información o consultar sobre otros casos, puede contactarnos a través de nuestra plataforma.</p>
+          <p>Si desea más información, contáctenos.</p>
         `;
         break;
 
       default:
-        return; // Si es un estado raro, no mandamos nada.
+        return; // Si el estado no requiere mail, salimos.
     }
 
-    // ENVIAMOS EL MAIL FINAL
-    await this.resend.emails.send({
-      from: 'Reclama Ya <onboarding@resend.dev>',
-      to: email,
-      subject: subject,
-      html: `
-        <h1>Hola ${nombre},</h1>
-        ${body}
+    // HTML Final Cliente
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h2>Hola ${nombre},</h2>
+        <p>Hay novedades en tu caso <strong>#${codigo}</strong>:</p>
+        <div style="background: #f0f9ff; padding: 15px; border-left: 4px solid #0ea5e9; margin: 15px 0;">
+             ${body}
+        </div>
+        <p>Lo mantendremos informado.</p>
         <br>
-        <hr>
-        <small>Equipo ReclamaYa! - San Martin 930, Tucumán.</small>
-      `,
-    });
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        <small style="color: #999;">Equipo ReclamaYa!</small>
+      </div>
+    `;
 
-    console.log(`📧 Mail enviado a ${email} por cambio a estado: ${nuevoEstado}`);
+    await this.sendMail(email, subject, html);
   }
 
+  // ==========================================
+  // 3. ACTUALIZACIÓN DE ESTADO: PRODUCTOR (Profesional)
+  // ==========================================
+  async sendProducerStatusUpdate(email: string, nombreProductor: string, estado: string, codigo: string, nombreCliente: string) {
+    if (!this.resend) return;
+
+    const subject = `Actualización Caso #${codigo} - Cliente: ${nombreCliente}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h3>Estimado Colega, ${nombreProductor}:</h3>
+        <p>Le notificamos un avance en la gestión del siniestro de su asegurado.</p>
+        
+        <div style="background: #fff7ed; padding: 15px; border: 1px solid #fed7aa; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>Expediente:</strong> #${codigo}</p>
+          <p style="margin: 5px 0;"><strong>Asegurado:</strong> ${nombreCliente}</p>
+          <p style="margin: 5px 0;"><strong>Nuevo Estado:</strong> <span style="color: #f97316; font-weight: bold;">${estado}</span></p>
+        </div>
+
+        <p>Continuamos con la gestión. Le avisaremos ante cualquier novedad.</p>
+        <br>
+        <p><em>Equipo de ReclamaYa</em></p>
+      </div>
+    `;
+
+    await this.sendMail(email, subject, html);
+  }
+
+  // ==========================================
+  // 4. ACTUALIZACIÓN DE ESTADO: BROKER (Reporte)
+  // ==========================================
+  async sendBrokerStatusUpdate(email: string, nombreBroker: string, estado: string, codigo: string, nombreProductor: string, nombreCliente: string) {
+    if (!this.resend) return;
+
+    const subject = `Reporte Red: Novedad Caso #${codigo}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h3>Hola, ${nombreBroker} (Organizador)</h3>
+        <p>Se registró movimiento en un caso perteneciente a su red de productores.</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+          <tr style="background: #f8fafc;">
+            <td style="padding: 10px; border: 1px solid #e2e8f0;"><strong>Productor:</strong></td>
+            <td style="padding: 10px; border: 1px solid #e2e8f0;">${nombreProductor}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #e2e8f0;"><strong>Cliente:</strong></td>
+            <td style="padding: 10px; border: 1px solid #e2e8f0;">${nombreCliente}</td>
+          </tr>
+          <tr style="background: #f0fdf4;">
+            <td style="padding: 10px; border: 1px solid #e2e8f0;"><strong>Nuevo Estado:</strong></td>
+            <td style="padding: 10px; border: 1px solid #e2e8f0; color: #166534; font-weight: bold;">${estado}</td>
+          </tr>
+        </table>
+
+        <p style="color: #64748b; font-size: 13px;">Este es un aviso automático de seguimiento de cartera.</p>
+      </div>
+    `;
+
+    await this.sendMail(email, subject, html);
+  }
+
+  // ==========================================
+  // 5. CUENTA APROBADA (USER)
+  // ==========================================
   async sendAccountApproved(email: string, nombre: string) {
     if (!this.resend) return;
 
-    await this.resend.emails.send({
-      from: 'Reclama Ya <onboarding@resend.dev>',
-      to: email,
-      subject: '🎉 ¡Tu cuenta ha sido aprobada!',
-      html: `
+    await this.sendMail(email, '🎉 ¡Tu cuenta ha sido aprobada!', `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h1>¡Bienvenido a Reclama Ya, ${nombre}!</h1>
-          <p>Nos complace informarte que tu cuenta ha sido <strong>verificada y aprobada</strong> por nuestro equipo de administración.</p>
+          <p>Nos complace informarte que tu cuenta ha sido <strong>verificada y aprobada</strong>.</p>
           <p>Ya puedes acceder a la plataforma para gestionar tus siniestros.</p>
           <br>
-          <a href="https://reclamaya.com.ar/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Login</a>
-          <br><br>
-          <hr>
-          <small>Equipo ReclamaYa!</small>
+          <a href="https://reclamaya.com.ar/login" style="background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Login</a>
         </div>
-      `,
-    });
+    `);
+  }
+
+  // ==========================================
+  // MÉTODO PRIVADO DE ENVÍO (RESEND)
+  // ==========================================
+  private async sendMail(to: string, subject: string, html: string) {
+    try {
+      // IMPORTANTE: 'onboarding@resend.dev' es solo para testeo.
+      // Cuando verifiques tu dominio en Resend, cambiá esto a 'consultas@tudominio.com'
+      const from = 'onboarding@resend.dev'; 
+      
+      await this.resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+      });
+      console.log(`📧 Mail enviado a ${to} | Asunto: ${subject}`);
+    } catch (error) {
+      console.error(`❌ Error enviando mail a ${to}:`, error);
+    }
   }
 }

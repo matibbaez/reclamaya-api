@@ -39,6 +39,7 @@ export class ReclamosController {
     { name: 'filePresupuesto', maxCount: 1 },   // "Presupuesto o carta de franquicia"
     { name: 'fileCBU', maxCount: 1 },           // "Comprobante de CBU"
     { name: 'fileDenunciaPenal', maxCount: 1 }, // "Denuncia Penal"
+    { name: 'fileFirma', maxCount: 1 },
   ]))
   async create(
     @Body() createReclamoDto: CreateReclamoDto,
@@ -53,6 +54,7 @@ export class ReclamosController {
       filePresupuesto?: Express.Multer.File[],   
       fileCBU?: Express.Multer.File[],           
       fileDenunciaPenal?: Express.Multer.File[]  
+      fileFirma?: Express.Multer.File[]
     }
   ) {
     return this.reclamosService.create(createReclamoDto, files); 
