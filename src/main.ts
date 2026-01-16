@@ -5,26 +5,31 @@ import { User, UserRole } from './users/entities/user.entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express'; // 👈 IMPORTANTE: Agregar esto
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // 1. ACTIVAR SEGURIDAD
+  // 1. AUMENTAR EL LÍMITE DE SUBIDA (Para fotos y firma)
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
+
+  // 2. ACTIVAR SEGURIDAD
   app.use(helmet()); 
   
-  // Habilitar CORS (Vital para que tu Frontend en Hostinger pueda hablar con el Back)
+  // 3. Habilitar CORS (Vital para que tu Frontend hable con el Back)
   app.enableCors(); 
 
-  // 2. VALIDACIÓN ESTRICTA
+  // 4. VALIDACIÓN ESTRICTA
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true
   }));
 
-  // --- SEED ADMIN (Mantenemos tu lógica original) ---
+  // --- SEED ADMIN (Lógica original) ---
   const usersRepository = app.get(getRepositoryToken(User));
-  const adminEmail = 'admin@estudio.com'; // ⚠️ Asegurate de cambiar la pass luego
+  const adminEmail = 'admin@estudio.com'; 
   
   const admin = await usersRepository.findOne({ where: { email: adminEmail } });
 
@@ -39,7 +44,7 @@ async function bootstrap() {
       role: UserRole.ADMIN,
       dni: '00000000',
       telefono: '0000000000',
-      referidoPor: null
+      referidoPor: null // null es válido aquí porque es admin raíz
     });
 
     await usersRepository.save(newAdmin);
@@ -47,9 +52,7 @@ async function bootstrap() {
   }
   // ----------------------------------
 
-  // 👇 EL CAMBIO PARA RENDER:
-  // Usamos process.env.PORT si existe (Render lo inyecta), sino 3000 (Local).
-  // '0.0.0.0' es obligatorio para que Docker/Render expongan el puerto.
+  // 👇 CONFIGURACIÓN RENDER
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
   
