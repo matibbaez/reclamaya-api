@@ -80,9 +80,15 @@ export class Reclamo {
   @Column({ default: false }) intervino_ambulancia: boolean;
 
   // --- ARCHIVOS ---
-  @Column() path_dni: string;
-  @Column({ nullable: true }) path_licencia: string;
-  @Column({ nullable: true }) path_cedula: string;
+  @Column("simple-array", { nullable: true }) 
+  path_dni: string[]; 
+  
+  @Column("simple-array", { nullable: true }) 
+  path_licencia: string[]; 
+
+  @Column("simple-array", { nullable: true }) 
+  path_cedula: string[]; 
+
   @Column({ nullable: true }) path_poliza: string;
   @Column({ nullable: true }) path_denuncia: string;
   @Column("simple-array", { nullable: true }) path_fotos: string[];
@@ -92,6 +98,9 @@ export class Reclamo {
   @Column({ nullable: true }) path_presupuesto: string;    
   @Column({ nullable: true }) path_cbu_archivo: string;    
   @Column({ nullable: true }) path_denuncia_penal: string; 
+
+  @Column("simple-array", { nullable: true }) 
+  path_complementaria: string[];
 
   @Column({ nullable: true }) path_representacion: string; 
   @Column({ nullable: true }) path_honorarios: string;

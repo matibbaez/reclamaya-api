@@ -7,7 +7,7 @@ import { CreateReclamoDto } from './dto/create-reclamo.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
-// 1. INTERFACE DE PATHS
+// 1. ACTUALIZAMOS LA INTERFACE PARA INCLUIR TODOS LOS TIPOS
 interface IPathsReclamo {
   dni: 'path_dni';
   licencia: 'path_licencia';
@@ -16,6 +16,12 @@ interface IPathsReclamo {
   denuncia: 'path_denuncia';
   fotos: 'path_fotos';
   medicos: 'path_medicos';
+  presupuesto: 'path_presupuesto';
+  cbu: 'path_cbu_archivo';
+  legal: 'path_denuncia_penal';
+  complementaria: 'path_complementaria';
+  representacion: 'path_representacion';
+  honorarios: 'path_honorarios';
 }
 
 @Controller('reclamos')
@@ -27,19 +33,18 @@ export class ReclamosController {
   // ------------------------------------------------------------------
   @Post()
   @UseInterceptors(FileFieldsInterceptor([
-    // Archivos existentes
-    { name: 'fileDNI', maxCount: 1 },
-    { name: 'fileLicencia', maxCount: 1 },
-    { name: 'fileCedula', maxCount: 1 },
+    { name: 'fileDNI', maxCount: 2 },
+    { name: 'fileLicencia', maxCount: 2 },
+    { name: 'fileCedula', maxCount: 2 },
     { name: 'fileSeguro', maxCount: 1 },
     { name: 'fileDenuncia', maxCount: 1 },
-    { name: 'fileFotos', maxCount: 5 }, 
+    { name: 'fileFotos', maxCount: 7 }, 
     { name: 'fileMedicos', maxCount: 1 }, 
-    // Archivos NUEVOS del PDF
-    { name: 'filePresupuesto', maxCount: 1 },   // "Presupuesto o carta de franquicia"
-    { name: 'fileCBU', maxCount: 1 },           // "Comprobante de CBU"
-    { name: 'fileDenunciaPenal', maxCount: 1 }, // "Denuncia Penal"
+    { name: 'filePresupuesto', maxCount: 1 },   
+    { name: 'fileCBU', maxCount: 1 },           
+    { name: 'fileDenunciaPenal', maxCount: 1 }, 
     { name: 'fileFirma', maxCount: 1 },
+    { name: 'fileComplementaria', maxCount: 5 },
   ]))
   async create(
     @Body() createReclamoDto: CreateReclamoDto,
@@ -53,8 +58,9 @@ export class ReclamosController {
       fileMedicos?: Express.Multer.File[],
       filePresupuesto?: Express.Multer.File[],   
       fileCBU?: Express.Multer.File[],           
-      fileDenunciaPenal?: Express.Multer.File[]  
-      fileFirma?: Express.Multer.File[]
+      fileDenunciaPenal?: Express.Multer.File[],
+      fileFirma?: Express.Multer.File[],
+      fileComplementaria?: Express.Multer.File[]
     }
   ) {
     return this.reclamosService.create(createReclamoDto, files); 
@@ -66,16 +72,14 @@ export class ReclamosController {
   @Get('consultar/:codigo')
   async consultarEstado(
     @Param('codigo') codigo: string,
-    @Query('dni') dni: string // 👈 Agregamos esto
+    @Query('dni') dni: string
   ) {
-    // Validamos que venga el DNI
     if (!dni) throw new BadRequestException('El DNI es obligatorio para la consulta.');
-    
     return this.reclamosService.consultarPorCodigo(codigo, dni);
   }
 
   @Get(':id/galeria')
-  // @UseGuards(JwtAuthGuard) // Descomentar si usás seguridad
+  // @UseGuards(JwtAuthGuard) 
   async getGaleria(@Param('id') id: string) {
     return this.reclamosService.getGaleria(id);
   }
@@ -91,7 +95,7 @@ export class ReclamosController {
   }
 
   // ------------------------------------------------------------------
-  // 4. ENDPOINT: "ASIGNAR TRAMITADOR" (ADMIN) - ¡NUEVO!
+  // 4. ENDPOINT: "ASIGNAR TRAMITADOR" (ADMIN)
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Patch(':id/asignar')
@@ -122,15 +126,19 @@ export class ReclamosController {
   }
 
   // ------------------------------------------------------------------
-  // 7. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO)
+  // 7. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO) -> ¡AQUÍ ESTÁ LA CORRECCIÓN!
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get('descargar/:id/:tipo')
   async descargarArchivo(
     @Param('id') id: string,
-    @Param('tipo') tipo: keyof IPathsReclamo,
+    @Param('tipo') tipo: string, // Usamos string para ser flexibles
+    @Query('index') index?: string, // <--- RECIBIMOS EL ÍNDICE
   ) {
-    const urlTemporal = await this.reclamosService.getArchivoUrl(id, tipo);
+    // Parseamos el índice a número (si no viene, mandamos 0)
+    const fileIndex = index ? parseInt(index, 10) : 0;
+    
+    const urlTemporal = await this.reclamosService.getArchivoUrl(id, tipo, fileIndex);
     return { url: urlTemporal };
   }
 

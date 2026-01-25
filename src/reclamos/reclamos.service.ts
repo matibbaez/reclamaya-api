@@ -36,10 +36,14 @@ export class ReclamosService {
   // ----------------------------------------------------------------------
   // 1. CREATE (OPTIMIZADO CON PARALELISMO)
   // ----------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  // 1. CREATE (OPTIMIZADO CON PARALELISMO Y MÚLTIPLES ARCHIVOS)
+  // ----------------------------------------------------------------------
   async create(dto: CreateReclamoDto, files: any) {
 
     // --- A. VALIDACIÓN LÓGICA ---
-    if (!files.fileDNI) throw new BadRequestException('Falta el DNI (frente y dorso).');
+    // Nota: Verificamos que exista y tenga contenido
+    if (!files.fileDNI || files.fileDNI.length === 0) throw new BadRequestException('Falta el DNI (frente y dorso).');
 
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
     const hizoDenuncia = String(dto.hizo_denuncia) === 'true';
@@ -66,6 +70,7 @@ export class ReclamosService {
        }
     } 
     else {
+       // Si es Peatón / Acompañante
        if (!files.fileMedicos) throw new BadRequestException('Faltan certificados médicos o historia clínica.');
     }
 
@@ -90,52 +95,59 @@ export class ReclamosService {
     const firmaFile = (files.fileFirma && files.fileFirma.length > 0) ? files.fileFirma[0] : null;
     const firmaBuffer = firmaFile ? firmaFile.buffer : undefined; // Buffer para incrustar
 
-    // Helper de subida
+    // Helper de subida individual
     const upload = async (file: Express.Multer.File, tag: string, index?: number) => {
       if (!file) return null;
       await this.validateFile(file);
-      // Agregamos sufijo si viene índice para evitar colisión de nombres
+      // Agregamos sufijo si viene índice para evitar colisión de nombres (ej: dni-1, dni-2)
       const sufijo = index !== undefined ? `-${index + 1}` : '';
       const nombre = `${dni}-${tag}-${timestamp}${sufijo}${extname(file.originalname)}`;
       return this.storageService.uploadFile(file, tag, nombre);
     };
 
-    // Helper para archivos opcionales únicos
+    // Helper para archivos opcionales ÚNICOS (Poliza, Denuncia, etc.)
     const uploadSingle = (fileArray: any[], tag: string) => 
         (fileArray && fileArray.length > 0) ? upload(fileArray[0], tag) : Promise.resolve(null);
 
-    // 🚀 EJECUCIÓN PARALELA DE TODAS LAS SUBIDAS DE USUARIO
+    // Helper para archivos MÚLTIPLES (DNI, Licencia, Cédula, Fotos, Complementaria)
+    const uploadMultiple = (fileArray: any[], tag: string) => 
+        (fileArray && fileArray.length > 0) 
+          ? Promise.all(fileArray.map((f, i) => upload(f, tag, i))) 
+          : Promise.resolve([]);
+
+    // 🚀 EJECUCIÓN PARALELA DE TODAS LAS SUBIDAS
     const [
-      path_dni,
-      path_licencia,
-      path_cedula,
+      path_dni,            // Array
+      path_licencia,       // Array
+      path_cedula,         // Array
       path_poliza_uploaded,
       path_denuncia,
       path_medicos,
       path_presupuesto,
       path_cbu_archivo,
       path_denuncia_penal,
-      path_fotos_raw,
-      path_firma_archivo
+      path_fotos_raw,      // Array
+      path_firma_archivo,
+      path_complementaria  // Array (NUEVO)
     ] = await Promise.all([
-      uploadSingle(files.fileDNI, 'dni'),
-      uploadSingle(files.fileLicencia, 'licencia'),
-      uploadSingle(files.fileCedula, 'cedula'),
+      uploadMultiple(files.fileDNI, 'dni'),           // <--- CAMBIO: Multiple
+      uploadMultiple(files.fileLicencia, 'licencia'), // <--- CAMBIO: Multiple
+      uploadMultiple(files.fileCedula, 'cedula'),     // <--- CAMBIO: Multiple
       uploadSingle(files.fileSeguro, 'poliza'),
       uploadSingle(files.fileDenuncia, 'denuncia'),
       uploadSingle(files.fileMedicos, 'medicos'),
       uploadSingle(files.filePresupuesto, 'presupuesto'),
       uploadSingle(files.fileCBU, 'cbu'),
       uploadSingle(files.fileDenunciaPenal, 'legal'),
-      // Fotos en paralelo con índice
-      files.fileFotos && files.fileFotos.length > 0
-        ? Promise.all(files.fileFotos.map((f: any, i: number) => upload(f, 'fotos', i)))
-        : Promise.resolve([]),
-      uploadSingle(files.fileFirma, 'firmas')
+      uploadMultiple(files.fileFotos, 'fotos'),       // <--- CAMBIO: Usa helper multiple
+      uploadSingle(files.fileFirma, 'firmas'),
+      uploadMultiple(files.fileComplementaria, 'complementaria') // <--- NUEVO CAMPO
     ]);
 
-    // Limpieza de array de fotos
-    const path_fotos = (path_fotos_raw as string[]).filter(p => p !== null);
+    // Limpieza de arrays (filtra nulos por seguridad)
+    const cleanArray = (arr: any) => Array.isArray(arr) ? arr.filter(p => p !== null) : [];
+
+    const path_fotos = cleanArray(path_fotos_raw);
     let path_poliza = path_poliza_uploaded;
 
     // --- C. GENERACIÓN Y SUBIDA DE PDFs AUTOMÁTICOS (Paralelismo) ---
@@ -233,20 +245,25 @@ export class ReclamosService {
       estado: ReclamoEstado.ENVIADO,
       usuario_creador: productor, 
       
-      // Paths
-      path_dni: path_dni!, 
-      path_licencia: path_licencia || undefined,
-      path_cedula: path_cedula || undefined,
+      // Paths Modificados (Cast a string[] para los arrays)
+      path_dni: cleanArray(path_dni) as string[], 
+      path_licencia: cleanArray(path_licencia) as string[],
+      path_cedula: cleanArray(path_cedula) as string[],
+      
       path_poliza: path_poliza || undefined,
       path_denuncia: path_denuncia || undefined,
       
       // Array de Fotos
-      path_fotos: path_fotos.length > 0 ? path_fotos : undefined,
+      path_fotos: path_fotos.length > 0 ? (path_fotos as string[]) : undefined,
       
+      // Archivos Únicos
       path_medicos: path_medicos || undefined,
       path_presupuesto: path_presupuesto || undefined,
       path_cbu_archivo: path_cbu_archivo || undefined,
       path_denuncia_penal: path_denuncia_penal || undefined,
+
+      // Nuevo Campo Complementario (Array)
+      path_complementaria: cleanArray(path_complementaria).length > 0 ? (cleanArray(path_complementaria) as string[]) : undefined,
 
       path_representacion: path_representacion || undefined,
       path_honorarios: path_honorarios || undefined
@@ -438,7 +455,8 @@ export class ReclamosService {
   // ----------------------------------------------------------------------
   // DESCARGA DE ARCHIVOS
   // ----------------------------------------------------------------------
-  async getArchivoUrl(reclamoId: string, tipoArchivo: string) {
+  // AGREGAMOS EL PARÁMETRO index CON VALOR POR DEFECTO 0
+  async getArchivoUrl(reclamoId: string, tipoArchivo: string, index: number = 0) {
     const mapaColumnas: Record<string, keyof Reclamo> = {
       'dni': 'path_dni',
       'licencia': 'path_licencia',
@@ -451,7 +469,8 @@ export class ReclamosService {
       'honorarios': 'path_honorarios',
       'presupuesto': 'path_presupuesto',
       'cbu': 'path_cbu_archivo',
-      'legal': 'path_denuncia_penal'
+      'legal': 'path_denuncia_penal',
+      'complementaria': 'path_complementaria' // Asegurate de agregar este
     };
 
     const columnaBd = mapaColumnas[tipoArchivo];
@@ -465,16 +484,22 @@ export class ReclamosService {
     if (!filePath) throw new NotFoundException(`El archivo no existe para este reclamo.`);
 
     let targetPath: string;
+    
+    // SI ES ARRAY, USAMOS EL ÍNDICE QUE NOS PASARON
     if (Array.isArray(filePath)) {
-        if (filePath.length === 0) throw new NotFoundException(`No hay fotos cargadas.`);
-        targetPath = filePath[0]; 
+        if (filePath.length === 0) throw new NotFoundException(`No hay archivos cargados.`);
+        
+        // Validación básica para que no rompa si piden un índice que no existe
+        const i = (index >= 0 && index < filePath.length) ? index : 0;
+        targetPath = filePath[i]; 
     } else {
+        // Si es string (archivo único), ignoramos el índice
         targetPath = filePath as string;
     }
 
     return this.storageService.createSignedUrl(targetPath);
   }
-
+  
   async findOne(id: string) { 
     const reclamo = await this.reclamoRepository.findOne({ 
       where: { id },
