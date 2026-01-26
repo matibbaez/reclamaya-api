@@ -45,7 +45,11 @@ export class PdfService {
       doc.font('Helvetica').text('__________________________', { align: 'center' });
       
       if (datos.firma) {
-          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+          // CORRECCIÓN: Ajuste de posición (-60) y uso de fit para controlar la altura máxima
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 60, { 
+            fit: [120, 60], 
+            align: 'center' 
+          });
       }
 
       doc.text('Firma del Solicitante', { align: 'center' });
@@ -94,7 +98,11 @@ export class PdfService {
       doc.text('__________________________', { align: 'center' });
       
       if (datos.firma) {
-          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+          // CORRECCIÓN: Ajuste de posición (-60) y uso de fit para controlar la altura máxima
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 60, { 
+            fit: [120, 60], 
+            align: 'center' 
+          });
       }
 
       doc.text('Firma del Solicitante', { align: 'center' });
@@ -143,7 +151,11 @@ export class PdfService {
       doc.text('__________________________', { align: 'center' });
       
       if (datos.firma) {
-          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 40, { width: 120 });
+          // CORRECCIÓN: Ajuste de posición (-60) y uso de fit para controlar la altura máxima
+          doc.image(datos.firma, (doc.page.width / 2) - 60, lineaY - 60, { 
+            fit: [120, 60], 
+            align: 'center' 
+          });
       }
 
       doc.text('Firma del Solicitante', { align: 'center' });
