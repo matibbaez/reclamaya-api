@@ -6,9 +6,15 @@ import { ReclamoEstado } from '../reclamos/entities/reclamo.entity';
 @Injectable()
 export class MailService {
   private resend: Resend;
+  private mailFrom: string;
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get('RESEND_API_KEY');
+    
+    // 2. LEER DEL .ENV (O usar fallback para desarrollo local)
+    // Esto te permite cambiar el mail desde Vercel sin tocar código
+    this.mailFrom = this.configService.get('MAIL_FROM') || 'onboarding@resend.dev';
+
     if (apiKey) {
       this.resend = new Resend(apiKey);
     } else {
@@ -41,8 +47,9 @@ export class MailService {
   // Para el Admin (Alerta de nuevo caso)
   async sendNewReclamoAdmin(data: { nombre: string; dni: string; codigo_seguimiento: string; tipo: string }) {
     if (!this.resend) return;
-    // IMPORTANTE: Cambiá este mail por el real de Marco/Agustín cuando vayas a prod
-    const adminEmail = 'mfbcaneda@gmail.com'; 
+    
+    // Leemos el mail del admin del .env, si no está, usa el tuyo como respaldo
+    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com'; 
     
     await this.sendMail(adminEmail, `🚨 Nuevo Reclamo: ${data.tipo}`, `
         <h3>Nuevo Siniestro Ingresado</h3>
@@ -225,18 +232,20 @@ export class MailService {
   // MÉTODO PRIVADO DE ENVÍO (RESEND)
   // ==========================================
   private async sendMail(to: string, subject: string, html: string) {
+    if (!this.resend) return; 
+
     try {
-      // IMPORTANTE: 'onboarding@resend.dev' es solo para testeo.
-      // Cuando verifiques tu dominio en Resend, cambiá esto a 'consultas@tudominio.com'
-      const from = 'onboarding@resend.dev'; 
+      // CORRECCIÓN: Usamos la variable de clase 'this.mailFrom' 
+      // en lugar del texto fijo 'onboarding@resend.dev'
+      const from = this.mailFrom; 
       
       await this.resend.emails.send({
-        from,
+        from, 
         to,
         subject,
         html,
       });
-      console.log(`📧 Mail enviado a ${to} | Asunto: ${subject}`);
+      console.log(`📧 Mail enviado a ${to} desde ${from} | Asunto: ${subject}`);
     } catch (error) {
       console.error(`❌ Error enviando mail a ${to}:`, error);
     }
