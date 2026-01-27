@@ -34,15 +34,11 @@ export class ReclamosService {
   }
 
   // ----------------------------------------------------------------------
-  // 1. CREATE (OPTIMIZADO CON PARALELISMO)
-  // ----------------------------------------------------------------------
-  // ----------------------------------------------------------------------
-  // 1. CREATE (OPTIMIZADO CON PARALELISMO Y MÚLTIPLES ARCHIVOS)
+  // 1. CREATE (OPTIMIZADO CON PARALELISMO Y NOTIFICACIONES COMPLETAS)
   // ----------------------------------------------------------------------
   async create(dto: CreateReclamoDto, files: any) {
 
     // --- A. VALIDACIÓN LÓGICA ---
-    // Nota: Verificamos que exista y tenga contenido
     if (!files.fileDNI || files.fileDNI.length === 0) throw new BadRequestException('Falta el DNI (frente y dorso).');
 
     const tieneSeguro = String(dto.tiene_seguro) === 'true';
@@ -78,11 +74,15 @@ export class ReclamosService {
         throw new BadRequestException('Indicó que sufrió lesiones pero no subió certificados médicos.');
     }
 
-    // --- LÓGICA DE REFERIDOS ---
+    // --- LÓGICA DE REFERIDOS (CORREGIDA PARA BROKER) ---
     let productor: User | undefined; 
     if (dto.codigo_ref) {
       try {
-        productor = await this.userRepository.findOne({ where: { id: dto.codigo_ref } }) || undefined; 
+        // CORRECCIÓN: Traemos 'referidoPor' para saber si tiene Broker/Organizador
+        productor = await this.userRepository.findOne({ 
+            where: { id: dto.codigo_ref },
+            relations: ['referidoPor'] 
+        }) || undefined; 
       } catch (error) {
         console.warn('⚠️ Código de referido inválido:', dto.codigo_ref);
       }
@@ -93,66 +93,59 @@ export class ReclamosService {
     const codigo_seguimiento = randomBytes(3).toString('hex').toUpperCase();
     const timestamp = Date.now();
     const firmaFile = (files.fileFirma && files.fileFirma.length > 0) ? files.fileFirma[0] : null;
-    const firmaBuffer = firmaFile ? firmaFile.buffer : undefined; // Buffer para incrustar
+    const firmaBuffer = firmaFile ? firmaFile.buffer : undefined;
 
-    // Helper de subida individual
+    // Helpers de subida
     const upload = async (file: Express.Multer.File, tag: string, index?: number) => {
       if (!file) return null;
       await this.validateFile(file);
-      // Agregamos sufijo si viene índice para evitar colisión de nombres (ej: dni-1, dni-2)
       const sufijo = index !== undefined ? `-${index + 1}` : '';
       const nombre = `${dni}-${tag}-${timestamp}${sufijo}${extname(file.originalname)}`;
       return this.storageService.uploadFile(file, tag, nombre);
     };
 
-    // Helper para archivos opcionales ÚNICOS (Poliza, Denuncia, etc.)
     const uploadSingle = (fileArray: any[], tag: string) => 
         (fileArray && fileArray.length > 0) ? upload(fileArray[0], tag) : Promise.resolve(null);
 
-    // Helper para archivos MÚLTIPLES (DNI, Licencia, Cédula, Fotos, Complementaria)
     const uploadMultiple = (fileArray: any[], tag: string) => 
         (fileArray && fileArray.length > 0) 
           ? Promise.all(fileArray.map((f, i) => upload(f, tag, i))) 
           : Promise.resolve([]);
 
-    // 🚀 EJECUCIÓN PARALELA DE TODAS LAS SUBIDAS
+    // 🚀 EJECUCIÓN PARALELA DE SUBIDAS
     const [
-      path_dni,            // Array
-      path_licencia,       // Array
-      path_cedula,         // Array
+      path_dni,
+      path_licencia,
+      path_cedula,
       path_poliza_uploaded,
       path_denuncia,
       path_medicos,
       path_presupuesto,
       path_cbu_archivo,
       path_denuncia_penal,
-      path_fotos_raw,      // Array
+      path_fotos_raw,
       path_firma_archivo,
-      path_complementaria  // Array (NUEVO)
+      path_complementaria
     ] = await Promise.all([
-      uploadMultiple(files.fileDNI, 'dni'),           // <--- CAMBIO: Multiple
-      uploadMultiple(files.fileLicencia, 'licencia'), // <--- CAMBIO: Multiple
-      uploadMultiple(files.fileCedula, 'cedula'),     // <--- CAMBIO: Multiple
+      uploadMultiple(files.fileDNI, 'dni'),
+      uploadMultiple(files.fileLicencia, 'licencia'),
+      uploadMultiple(files.fileCedula, 'cedula'),
       uploadSingle(files.fileSeguro, 'poliza'),
       uploadSingle(files.fileDenuncia, 'denuncia'),
       uploadSingle(files.fileMedicos, 'medicos'),
       uploadSingle(files.filePresupuesto, 'presupuesto'),
       uploadSingle(files.fileCBU, 'cbu'),
       uploadSingle(files.fileDenunciaPenal, 'legal'),
-      uploadMultiple(files.fileFotos, 'fotos'),       // <--- CAMBIO: Usa helper multiple
+      uploadMultiple(files.fileFotos, 'fotos'),
       uploadSingle(files.fileFirma, 'firmas'),
-      uploadMultiple(files.fileComplementaria, 'complementaria') // <--- NUEVO CAMPO
+      uploadMultiple(files.fileComplementaria, 'complementaria')
     ]);
 
-    // Limpieza de arrays (filtra nulos por seguridad)
     const cleanArray = (arr: any) => Array.isArray(arr) ? arr.filter(p => p !== null) : [];
-
     const path_fotos = cleanArray(path_fotos_raw);
     let path_poliza = path_poliza_uploaded;
 
-    // --- C. GENERACIÓN Y SUBIDA DE PDFs AUTOMÁTICOS (Paralelismo) ---
-    
-    // 1. Promesa Representación
+    // --- C. GENERACIÓN Y SUBIDA DE PDFs AUTOMÁTICOS ---
     const representacionTask = async () => {
         try {
             const pdfRep = await this.pdfService.generarRepresentacion({
@@ -164,7 +157,6 @@ export class ReclamosService {
         } catch (e) { console.error('Error Rep:', e); return null; }
     };
 
-    // 2. Promesa Honorarios
     const honorariosTask = async () => {
         try {
             const pdfHon = await this.pdfService.generarHonorarios({
@@ -176,7 +168,6 @@ export class ReclamosService {
         } catch (e) { console.error('Error Hon:', e); return null; }
     };
 
-    // 3. Promesa Carta No Seguro (Condicional)
     const noSeguroTask = async () => {
         if (dto.rol_victima === 'Conductor' && !tieneSeguro) {
             try {
@@ -193,14 +184,12 @@ export class ReclamosService {
         return null;
     };
 
-    // 🚀 EJECUCIÓN PARALELA DE PDFs
     const [path_representacion, path_honorarios, path_generado_noseguro] = await Promise.all([
         representacionTask(),
         honorariosTask(),
         noSeguroTask()
     ]);
 
-    // Si se generó carta de no seguro, reemplaza a la póliza
     if (path_generado_noseguro) {
         path_poliza = path_generado_noseguro;
     }
@@ -245,24 +234,18 @@ export class ReclamosService {
       estado: ReclamoEstado.ENVIADO,
       usuario_creador: productor, 
       
-      // Paths Modificados (Cast a string[] para los arrays)
       path_dni: cleanArray(path_dni) as string[], 
       path_licencia: cleanArray(path_licencia) as string[],
       path_cedula: cleanArray(path_cedula) as string[],
       
       path_poliza: path_poliza || undefined,
       path_denuncia: path_denuncia || undefined,
-      
-      // Array de Fotos
       path_fotos: path_fotos.length > 0 ? (path_fotos as string[]) : undefined,
       
-      // Archivos Únicos
       path_medicos: path_medicos || undefined,
       path_presupuesto: path_presupuesto || undefined,
       path_cbu_archivo: path_cbu_archivo || undefined,
       path_denuncia_penal: path_denuncia_penal || undefined,
-
-      // Nuevo Campo Complementario (Array)
       path_complementaria: cleanArray(path_complementaria).length > 0 ? (cleanArray(path_complementaria) as string[]) : undefined,
 
       path_representacion: path_representacion || undefined,
@@ -271,15 +254,42 @@ export class ReclamosService {
 
     await this.reclamoRepository.save(nuevoReclamo);
 
-    // --- E. EMAILS ---
+    // --- E. EMAILS DE CONFIRMACIÓN ---
+    
+    // 1. Cliente
     this.mailService.sendNewReclamoClient(dto.email, dto.nombre, codigo_seguimiento).catch(console.error);
     
+    // 2. Admin (Alerta)
     this.mailService.sendNewReclamoAdmin({
       nombre: dto.nombre,
       dni: dto.dni,
       codigo_seguimiento,
       tipo: dto.rol_victima 
     }).catch(console.error);
+
+    // 3. Productor y Broker (Confirmación de carga) -> NUEVO
+    if (productor) {
+        // Al Productor
+        this.mailService.sendProducerStatusUpdate(
+            productor.email,
+            productor.nombre,
+            ReclamoEstado.ENVIADO, // Usamos el estado inicial como confirmación
+            codigo_seguimiento,
+            dto.nombre
+        ).catch(e => console.error('Error mail productor inicio:', e));
+
+        // Al Broker (si tiene)
+        if (productor.referidoPor) {
+            this.mailService.sendBrokerStatusUpdate(
+                productor.referidoPor.email,
+                productor.referidoPor.nombre,
+                ReclamoEstado.ENVIADO,
+                codigo_seguimiento,
+                productor.nombre,
+                dto.nombre
+            ).catch(e => console.error('Error mail broker inicio:', e));
+        }
+    }
 
     return { message: '¡Éxito!', codigo_seguimiento };
   }
@@ -373,10 +383,17 @@ export class ReclamosService {
     
     const actualizado = await this.reclamoRepository.save(reclamo);
 
-    // 👇 AQUÍ ESTÁ LA MAGIA DE LA NOTIFICACIÓN DIFERENCIADA
+    // 👇 NOTIFICACIONES DE CAMBIO DE ESTADO
     if (body.estado && body.estado !== estadoAnterior) {
         
-        // 1. Notificar al CLIENTE (Asegurado)
+        // 1. Notificar al ADMIN (Nuevo)
+        this.mailService.sendAdminStatusUpdate(
+            reclamo.nombre, 
+            reclamo.estado, 
+            reclamo.codigo_seguimiento
+        ).catch(e => console.error('Error mail admin update:', e));
+
+        // 2. Notificar al CLIENTE (Asegurado)
         this.mailService.sendClientStatusUpdate(
             reclamo.email, 
             reclamo.nombre, 
@@ -384,25 +401,25 @@ export class ReclamosService {
             reclamo.codigo_seguimiento
         ).catch(e => console.error('Error mail cliente:', e));
 
-        // 2. Notificar al PRODUCTOR (Si existe)
+        // 3. Notificar al PRODUCTOR (Si existe)
         if (reclamo.usuario_creador) {
             this.mailService.sendProducerStatusUpdate(
                 reclamo.usuario_creador.email, 
-                reclamo.usuario_creador.nombre, // Nombre Productor
+                reclamo.usuario_creador.nombre, 
                 reclamo.estado,
                 reclamo.codigo_seguimiento,
-                reclamo.nombre // Nombre Cliente (para que el productor sepa de quién hablan)
+                reclamo.nombre 
             ).catch(e => console.error('Error mail productor:', e));
 
-            // 3. Notificar al BROKER (Si el productor tiene jefe)
+            // 4. Notificar al BROKER (Si el productor tiene jefe)
             if (reclamo.usuario_creador.referidoPor) {
                 this.mailService.sendBrokerStatusUpdate(
                     reclamo.usuario_creador.referidoPor.email, 
-                    reclamo.usuario_creador.referidoPor.nombre, // Nombre Broker
+                    reclamo.usuario_creador.referidoPor.nombre, 
                     reclamo.estado,
                     reclamo.codigo_seguimiento,
-                    reclamo.usuario_creador.nombre, // "Tu productor X tuvo una novedad"
-                    reclamo.nombre // Nombre Cliente
+                    reclamo.usuario_creador.nombre, 
+                    reclamo.nombre 
                 ).catch(e => console.error('Error mail broker:', e));
             }
         }
@@ -455,7 +472,6 @@ export class ReclamosService {
   // ----------------------------------------------------------------------
   // DESCARGA DE ARCHIVOS
   // ----------------------------------------------------------------------
-  // AGREGAMOS EL PARÁMETRO index CON VALOR POR DEFECTO 0
   async getArchivoUrl(reclamoId: string, tipoArchivo: string, index: number = 0) {
     const mapaColumnas: Record<string, keyof Reclamo> = {
       'dni': 'path_dni',
@@ -470,7 +486,7 @@ export class ReclamosService {
       'presupuesto': 'path_presupuesto',
       'cbu': 'path_cbu_archivo',
       'legal': 'path_denuncia_penal',
-      'complementaria': 'path_complementaria' // Asegurate de agregar este
+      'complementaria': 'path_complementaria'
     };
 
     const columnaBd = mapaColumnas[tipoArchivo];
@@ -485,15 +501,11 @@ export class ReclamosService {
 
     let targetPath: string;
     
-    // SI ES ARRAY, USAMOS EL ÍNDICE QUE NOS PASARON
     if (Array.isArray(filePath)) {
         if (filePath.length === 0) throw new NotFoundException(`No hay archivos cargados.`);
-        
-        // Validación básica para que no rompa si piden un índice que no existe
         const i = (index >= 0 && index < filePath.length) ? index : 0;
         targetPath = filePath[i]; 
     } else {
-        // Si es string (archivo único), ignoramos el índice
         targetPath = filePath as string;
     }
 
@@ -515,17 +527,11 @@ export class ReclamosService {
   async findAllByUser(userId: string) {
     return this.reclamoRepository.find({
       where: [
-        // 1. Casos creados directamente por mí (Productor o Broker cargando personal)
         { usuario_creador: { id: userId } },
-        
-        // 2. Casos donde soy el Tramitador asignado (si aplica)
         { tramitador: { id: userId } },
-
-        // 3. 👇 LA CLAVE: Casos creados por usuarios que me tienen como referente (Mis Productores)
         { usuario_creador: { referidoPor: { id: userId } } } 
       ],
       order: { fecha_creacion: 'DESC' },
-      // Es vital traer la relación 'usuario_creador' para mostrar el nombre en el front
       relations: ['usuario_creador', 'tramitador'] 
     });
   }
