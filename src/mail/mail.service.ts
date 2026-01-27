@@ -280,7 +280,6 @@ export class MailService {
               </table>
 
               <div style="margin-top: 24px; text-align: center; color: #9ca3af; font-size: 12px;">
-                <p style="margin: 4px 0;">San Martin 930, 5° Piso - San Miguel de Tucumán</p>
                 <p style="margin: 4px 0;">© ${new Date().getFullYear()} Reclama Ya.</p>
                 <p style="margin: 12px 0;">
                   <a href="${this.webUrl}" style="color: #9ca3af; text-decoration: underline;">Web</a> | 
