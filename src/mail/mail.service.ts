@@ -9,9 +9,8 @@ export class MailService {
   private mailFrom: string;
   
   // 🎨 COLORES DE MARCA
-  // Ajustados para replicar tu logo: "Reclama" (Oscuro), "Ya" (Azul), "." (Azul)
-  private primaryColor = '#2563eb'; // Tu $primary / $accent (Blue-600)
-  private darkColor = '#111827';    // Para el texto "Reclama"
+  private primaryColor = '#2563eb'; // Blue-600
+  private darkColor = '#111827';    // Gris oscuro
   private webUrl = 'https://reclamaya.ar';
 
   constructor(private configService: ConfigService) {
@@ -32,7 +31,7 @@ export class MailService {
     if (!this.resend) return;
 
     const content = `
-      <h1 style="color: #111827; font-size: 24px; margin-bottom: 16px;">Hola, ${nombre}</h1>
+      <h1 style="color: ${this.darkColor}; font-size: 24px; margin-bottom: 16px;">Hola, ${nombre}</h1>
       <p style="color: #4b5563; font-size: 16px; line-height: 24px;">Gracias por confiar en <strong>Reclama Ya!</strong></p>
       <p style="color: #4b5563; font-size: 16px; line-height: 24px;">Hemos recibido su reclamo y ya fue derivado a nuestro equipo.</p>
 
@@ -59,7 +58,7 @@ export class MailService {
     await this.sendMail(email, '✅ Reclamo Enviado Exitosamente', this.getTemplate(content));
   }
 
-  // Notificación Interna (Admin)
+  // Notificación Interna (Admin) - Nuevo Reclamo
   async sendNewReclamoAdmin(data: { nombre: string; dni: string; codigo_seguimiento: string; tipo: string }) {
     if (!this.resend) return;
     const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com'; 
@@ -154,7 +153,7 @@ export class MailService {
     }
 
     const content = `
-      <h1 style="color: #111827; font-size: 22px;">Novedades en su caso</h1>
+      <h1 style="color: ${this.darkColor}; font-size: 22px;">Novedades en su caso</h1>
       <p style="color: #6b7280; margin-bottom: 20px;">Hola ${nombre}, hay un cambio de estado en el expediente <strong>#${codigo}</strong>.</p>
       
       <div style="text-align: center; margin: 25px 0;">
@@ -175,7 +174,32 @@ export class MailService {
   }
 
   // ==========================================
-  // 3. ACTUALIZACIONES PROFESIONALES (Productor / Broker)
+  // 3. ACTUALIZACIÓN DE ESTADO: ADMIN (NUEVO)
+  // ==========================================
+  async sendAdminStatusUpdate(nombreCliente: string, nuevoEstado: string, codigo: string) {
+    if (!this.resend) return;
+    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com'; 
+
+    const content = `
+      <h3 style="color: ${this.darkColor};">ℹ️ Actualización de Caso</h3>
+      <p>Se ha registrado un cambio de estado en el sistema.</p>
+      
+      <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+         <p style="margin:5px 0"><strong>Caso:</strong> #${codigo}</p>
+         <p style="margin:5px 0"><strong>Cliente:</strong> ${nombreCliente}</p>
+         <p style="margin:5px 0"><strong>Nuevo Estado:</strong> <span style="color:${this.primaryColor}; font-weight:bold;">${nuevoEstado}</span></p>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="${this.webUrl}/admin" style="${this.getButtonStyle()}">Ir al Panel Admin</a>
+      </div>
+    `;
+
+    await this.sendMail(adminEmail, `[ADMIN] Estado Actualizado #${codigo}`, this.getTemplate(content));
+  }
+
+  // ==========================================
+  // 4. ACTUALIZACIONES PROFESIONALES (Productor / Broker)
   // ==========================================
   async sendProducerStatusUpdate(email: string, nombreProductor: string, estado: string, codigo: string, nombreCliente: string) {
     if (!this.resend) return;
