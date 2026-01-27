@@ -33,18 +33,20 @@ export class ReclamosController {
   // ------------------------------------------------------------------
   @Post()
   @UseInterceptors(FileFieldsInterceptor([
-    { name: 'fileDNI', maxCount: 2 },
-    { name: 'fileLicencia', maxCount: 2 },
-    { name: 'fileCedula', maxCount: 2 },
-    { name: 'fileSeguro', maxCount: 1 },
-    { name: 'fileDenuncia', maxCount: 1 },
-    { name: 'fileFotos', maxCount: 7 }, 
-    { name: 'fileMedicos', maxCount: 1 }, 
-    { name: 'filePresupuesto', maxCount: 1 },   
-    { name: 'fileCBU', maxCount: 1 },           
-    { name: 'fileDenunciaPenal', maxCount: 1 }, 
-    { name: 'fileFirma', maxCount: 1 },
-    { name: 'fileComplementaria', maxCount: 5 },
+    { name: 'fileDNI', maxCount: 4 },
+    { name: 'fileLicencia', maxCount: 4 },
+    { name: 'fileCedula', maxCount: 4 },
+    { name: 'fileSeguro', maxCount: 4 },        
+    { name: 'fileDenuncia', maxCount: 4 },      
+    { name: 'fileMedicos', maxCount: 4 },      
+    { name: 'filePresupuesto', maxCount: 4 },   
+    { name: 'fileCBU', maxCount: 4 },           
+    { name: 'fileDenunciaPenal', maxCount: 4 }, 
+    { name: 'fileComplementaria', maxCount: 4 },
+    
+    // Mantenemos excepciones
+    { name: 'fileFotos', maxCount: 7 },         
+    { name: 'fileFirma', maxCount: 1 },         
   ]))
   async create(
     @Body() createReclamoDto: CreateReclamoDto,

@@ -113,37 +113,40 @@ export class ReclamosService {
           : Promise.resolve([]);
 
     // 🚀 EJECUCIÓN PARALELA DE SUBIDAS
+    // AHORA USAMOS 'uploadMultiple' PARA CASI TODO (menos Firma)
     const [
       path_dni,
       path_licencia,
       path_cedula,
-      path_poliza_uploaded,
-      path_denuncia,
-      path_medicos,
-      path_presupuesto,
-      path_cbu_archivo,
-      path_denuncia_penal,
-      path_fotos_raw,
-      path_firma_archivo,
-      path_complementaria
+      path_poliza_uploaded, // Array
+      path_denuncia,        // Array
+      path_medicos,         // Array
+      path_presupuesto,     // Array
+      path_cbu_archivo,     // Array
+      path_denuncia_penal,  // Array
+      path_fotos_raw,       // Array
+      path_firma_archivo,   // Single
+      path_complementaria   // Array
     ] = await Promise.all([
       uploadMultiple(files.fileDNI, 'dni'),
       uploadMultiple(files.fileLicencia, 'licencia'),
       uploadMultiple(files.fileCedula, 'cedula'),
-      uploadSingle(files.fileSeguro, 'poliza'),
-      uploadSingle(files.fileDenuncia, 'denuncia'),
-      uploadSingle(files.fileMedicos, 'medicos'),
-      uploadSingle(files.filePresupuesto, 'presupuesto'),
-      uploadSingle(files.fileCBU, 'cbu'),
-      uploadSingle(files.fileDenunciaPenal, 'legal'),
+      uploadMultiple(files.fileSeguro, 'poliza'),      // <-- CAMBIO: Multiple
+      uploadMultiple(files.fileDenuncia, 'denuncia'),  // <-- CAMBIO: Multiple
+      uploadMultiple(files.fileMedicos, 'medicos'),    // <-- CAMBIO: Multiple
+      uploadMultiple(files.filePresupuesto, 'presupuesto'), // <-- CAMBIO: Multiple
+      uploadMultiple(files.fileCBU, 'cbu'),            // <-- CAMBIO: Multiple
+      uploadMultiple(files.fileDenunciaPenal, 'legal'),// <-- CAMBIO: Multiple
       uploadMultiple(files.fileFotos, 'fotos'),
       uploadSingle(files.fileFirma, 'firmas'),
       uploadMultiple(files.fileComplementaria, 'complementaria')
     ]);
 
     const cleanArray = (arr: any) => Array.isArray(arr) ? arr.filter(p => p !== null) : [];
+    
+    // Preparar paths
     const path_fotos = cleanArray(path_fotos_raw);
-    let path_poliza = path_poliza_uploaded;
+    let path_poliza = cleanArray(path_poliza_uploaded); // Ahora es array
 
     // --- C. GENERACIÓN Y SUBIDA DE PDFs AUTOMÁTICOS ---
     const representacionTask = async () => {
@@ -190,8 +193,9 @@ export class ReclamosService {
         noSeguroTask()
     ]);
 
+    // Si se generó la carta de NO seguro, esta reemplaza cualquier póliza subida (que no debería haber)
     if (path_generado_noseguro) {
-        path_poliza = path_generado_noseguro;
+        path_poliza = [path_generado_noseguro];
     }
 
     // --- D. GUARDAR EN BD ---
@@ -234,20 +238,22 @@ export class ReclamosService {
       estado: ReclamoEstado.ENVIADO,
       usuario_creador: productor, 
       
+      // GUARDADO DE ARRAYS
       path_dni: cleanArray(path_dni) as string[], 
       path_licencia: cleanArray(path_licencia) as string[],
       path_cedula: cleanArray(path_cedula) as string[],
       
-      path_poliza: path_poliza || undefined,
-      path_denuncia: path_denuncia || undefined,
-      path_fotos: path_fotos.length > 0 ? (path_fotos as string[]) : undefined,
+      path_poliza: path_poliza.length > 0 ? (path_poliza as string[]) : undefined,
+      path_denuncia: cleanArray(path_denuncia).length > 0 ? (cleanArray(path_denuncia) as string[]) : undefined,
+      path_medicos: cleanArray(path_medicos).length > 0 ? (cleanArray(path_medicos) as string[]) : undefined,
+      path_presupuesto: cleanArray(path_presupuesto).length > 0 ? (cleanArray(path_presupuesto) as string[]) : undefined,
+      path_cbu_archivo: cleanArray(path_cbu_archivo).length > 0 ? (cleanArray(path_cbu_archivo) as string[]) : undefined,
+      path_denuncia_penal: cleanArray(path_denuncia_penal).length > 0 ? (cleanArray(path_denuncia_penal) as string[]) : undefined,
       
-      path_medicos: path_medicos || undefined,
-      path_presupuesto: path_presupuesto || undefined,
-      path_cbu_archivo: path_cbu_archivo || undefined,
-      path_denuncia_penal: path_denuncia_penal || undefined,
+      path_fotos: path_fotos.length > 0 ? (path_fotos as string[]) : undefined,
       path_complementaria: cleanArray(path_complementaria).length > 0 ? (cleanArray(path_complementaria) as string[]) : undefined,
 
+      // Estos siguen siendo strings únicos (generados por sistema)
       path_representacion: path_representacion || undefined,
       path_honorarios: path_honorarios || undefined
     });
@@ -267,13 +273,13 @@ export class ReclamosService {
       tipo: dto.rol_victima 
     }).catch(console.error);
 
-    // 3. Productor y Broker (Confirmación de carga) -> NUEVO
+    // 3. Productor y Broker (Confirmación de carga)
     if (productor) {
         // Al Productor
         this.mailService.sendProducerStatusUpdate(
             productor.email,
             productor.nombre,
-            ReclamoEstado.ENVIADO, // Usamos el estado inicial como confirmación
+            ReclamoEstado.ENVIADO,
             codigo_seguimiento,
             dto.nombre
         ).catch(e => console.error('Error mail productor inicio:', e));
@@ -386,14 +392,14 @@ export class ReclamosService {
     // 👇 NOTIFICACIONES DE CAMBIO DE ESTADO
     if (body.estado && body.estado !== estadoAnterior) {
         
-        // 1. Notificar al ADMIN (Nuevo)
+        // 1. Notificar al ADMIN
         this.mailService.sendAdminStatusUpdate(
             reclamo.nombre, 
             reclamo.estado, 
             reclamo.codigo_seguimiento
         ).catch(e => console.error('Error mail admin update:', e));
 
-        // 2. Notificar al CLIENTE (Asegurado)
+        // 2. Notificar al CLIENTE
         this.mailService.sendClientStatusUpdate(
             reclamo.email, 
             reclamo.nombre, 
@@ -401,7 +407,7 @@ export class ReclamosService {
             reclamo.codigo_seguimiento
         ).catch(e => console.error('Error mail cliente:', e));
 
-        // 3. Notificar al PRODUCTOR (Si existe)
+        // 3. Notificar al PRODUCTOR
         if (reclamo.usuario_creador) {
             this.mailService.sendProducerStatusUpdate(
                 reclamo.usuario_creador.email, 
@@ -411,7 +417,7 @@ export class ReclamosService {
                 reclamo.nombre 
             ).catch(e => console.error('Error mail productor:', e));
 
-            // 4. Notificar al BROKER (Si el productor tiene jefe)
+            // 4. Notificar al BROKER
             if (reclamo.usuario_creador.referidoPor) {
                 this.mailService.sendBrokerStatusUpdate(
                     reclamo.usuario_creador.referidoPor.email, 

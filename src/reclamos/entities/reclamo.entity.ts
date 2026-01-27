@@ -89,15 +89,27 @@ export class Reclamo {
   @Column("simple-array", { nullable: true }) 
   path_cedula: string[]; 
 
-  @Column({ nullable: true }) path_poliza: string;
-  @Column({ nullable: true }) path_denuncia: string;
-  @Column("simple-array", { nullable: true }) path_fotos: string[];
-  @Column({ nullable: true }) path_medicos: string;
+  @Column("simple-array", { nullable: true }) 
+  path_poliza: string[]; 
+
+  @Column("simple-array", { nullable: true }) 
+  path_denuncia: string[]; 
+
+  @Column("simple-array", { nullable: true })
+  path_fotos: string[];
+
+  @Column("simple-array", { nullable: true }) 
+  path_medicos: string[]; 
   
   // Archivos Nuevos requeridos por PDF
-  @Column({ nullable: true }) path_presupuesto: string;    
-  @Column({ nullable: true }) path_cbu_archivo: string;    
-  @Column({ nullable: true }) path_denuncia_penal: string; 
+  @Column("simple-array", { nullable: true }) 
+  path_presupuesto: string[]; 
+
+  @Column("simple-array", { nullable: true }) 
+  path_cbu_archivo: string[]; 
+
+  @Column("simple-array", { nullable: true }) 
+  path_denuncia_penal: string[]; 
 
   @Column("simple-array", { nullable: true }) 
   path_complementaria: string[];
