@@ -8,10 +8,10 @@ export class MailService {
   private resend: Resend;
   private mailFrom: string;
   
-  // 🎨 CONFIGURACIÓN DE DISEÑO
-  // Recuerda subir tu logo a la carpeta 'public' del front y poner la URL aquí
-  private logoUrl = 'https://reclamaya.ar/logo-email.png'; 
-  private primaryColor = '#2563eb'; // Azul Royal (Blue-600)
+  // 🎨 COLORES DE MARCA
+  // Ajustados para replicar tu logo: "Reclama" (Oscuro), "Ya" (Azul), "." (Azul)
+  private primaryColor = '#2563eb'; // Tu $primary / $accent (Blue-600)
+  private darkColor = '#111827';    // Para el texto "Reclama"
   private webUrl = 'https://reclamaya.ar';
 
   constructor(private configService: ConfigService) {
@@ -26,23 +26,15 @@ export class MailService {
   }
 
   // ==========================================
-  // 1. MAILS INICIALES (ALTA DE RECLAMO)
+  // 1. MAILS INICIALES
   // ==========================================
-
-  // TEXTO FUENTE PDF: "1) Reclamo Enviado"
   async sendNewReclamoClient(email: string, nombre: string, codigo: string) {
     if (!this.resend) return;
 
     const content = `
       <h1 style="color: #111827; font-size: 24px; margin-bottom: 16px;">Hola, ${nombre}</h1>
-      
-      <p style="color: #4b5563; font-size: 16px; line-height: 24px;">
-        Gracias por confiar en <strong>Reclama Ya!</strong>
-      </p>
-      
-      <p style="color: #4b5563; font-size: 16px; line-height: 24px;">
-        Hemos recibido su reclamo y ya fue derivado a nuestro equipo.
-      </p>
+      <p style="color: #4b5563; font-size: 16px; line-height: 24px;">Gracias por confiar en <strong>Reclama Ya!</strong></p>
+      <p style="color: #4b5563; font-size: 16px; line-height: 24px;">Hemos recibido su reclamo y ya fue derivado a nuestro equipo.</p>
 
       <div style="background-color: #f0f9ff; border-left: 4px solid ${this.primaryColor}; padding: 16px; margin: 24px 0; border-radius: 4px;">
         <p style="margin: 0; color: #0c4a6e; font-size: 15px;">
@@ -50,9 +42,7 @@ export class MailService {
         </p>
       </div>
       
-      <p style="color: #4b5563; font-size: 14px;">
-        Nuestro compromiso es acompañarlo en cada paso del proceso para que obtenga la mejor y más rápida indemnización.
-      </p>
+      <p style="color: #4b5563; font-size: 14px;">Nuestro compromiso es acompañarlo en cada paso para obtener la mejor indemnización.</p>
 
       <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0;">
 
@@ -102,84 +92,64 @@ export class MailService {
     let bodyText = '';
     let statusColor = this.primaryColor;
 
-    [cite_start]// LÓGICA BASADA EN PDF "Emails 2.pdf" [cite: 14, 31, 43, 53, 62, 75]
     switch (nuevoEstado) {
-      
-      // TEXTO PDF: "2) Reclamo Recepcionado"
       case ReclamoEstado.RECEPCIONADO:
         subject = '📁 Reclamo Recepcionado';
         bodyText = `
-          <p>Su reclamo ya cuenta con un <strong>tramitador asignado</strong>, quien está revisando la documentación enviada.</p>
-          <p>En esta etapa:</p>
+          <p>Su reclamo ya cuenta con un <strong>tramitador asignado</strong>, quien está revisando la documentación.</p>
           <ul style="padding-left: 20px; color: #374151;">
-            <li style="margin-bottom: 8px;">Si el reclamo <strong>no es viable legalmente</strong>, le informaremos el rechazo por improcedencia legal.</li>
-            <li>Si el reclamo <strong>es viable</strong>, en un plazo máximo de <strong>48 horas hábiles</strong> lo iniciaremos ante la aseguradora correspondiente.</li>
+            <li style="margin-bottom: 8px;">Si el reclamo <strong>no es viable legalmente</strong>, le informaremos el rechazo.</li>
+            <li>Si <strong>es viable</strong>, en máx 48hs hábiles lo iniciaremos ante la aseguradora.</li>
           </ul>
-          <p>Lo mantendremos informado sobre cada avance.</p>
         `;
         break;
-
-      // TEXTO PDF: "3) Reclamo Iniciado"
       case ReclamoEstado.INICIADO:
-        subject = '¡Buenas noticias!'; // Segun PDF: "¡Buenas noticias!"
+        subject = '¡Buenas noticias!';
         statusColor = '#16a34a'; // Verde
         bodyText = `
           <p><strong>Su reclamo fue iniciado correctamente ante la aseguradora.</strong></p>
-          <p>A partir de ahora:</p>
           <ul style="padding-left: 20px; color: #374151;">
             <li style="margin-bottom: 8px;">Iniciamos comunicaciones con el seguro.</li>
-            <li>La aseguradora analizará las pruebas y realizará las pericias necesarias antes de hacer una oferta.</li>
+            <li>La aseguradora analizará las pruebas y realizará pericias antes de ofertar.</li>
           </ul>
-          <p>Nos aseguraremos de que cada paso se realice de forma rápida y segura.</p>
         `;
         break;
-
-      // TEXTO PDF: "4) Negociación"
       case ReclamoEstado.NEGOCIACION:
         subject = '🤝 Negociación en curso';
         statusColor = '#ea580c'; // Naranja
         bodyText = `
           <p>Estamos gestionando el <strong>monto indemnizatorio</strong> con la aseguradora.</p>
-          <p>En breve le informaremos la cifra propuesta para su conciliación.</p>
+          <p>En breve le informaremos la cifra propuesta.</p>
           <p><strong>Nuestro objetivo es lograr el mejor acuerdo posible para usted.</strong></p>
         `;
         break;
-
-      // TEXTO PDF: "5) Indemnizando"
       case ReclamoEstado.INDEMNIZANDO:
         subject = '🎉 Acuerdo Cerrado exitosamente';
-        statusColor = '#16a34a'; // Verde
+        statusColor = '#16a34a';
         bodyText = `
           <p><strong>El acuerdo ya fue cerrado exitosamente.</strong></p>
           <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 6px; margin: 16px 0;">
-            <p style="margin:0; color: #166534;">En un plazo máximo de <strong>30 días hábiles</strong>, el monto acordado se acreditará en su cuenta bancaria.</p>
+            <p style="margin:0; color: #166534;">En un plazo máximo de <strong>30 días hábiles</strong>, el monto se acreditará en su cuenta.</p>
           </div>
-          <p style="font-size: 14px; color: #6b7280;">* Una vez efectuado el pago, se finiquitarán los honorarios profesionales correspondientes al 20%.</p>
-          <p>Gracias por su confianza.</p>
+          <p style="font-size: 14px; color: #6b7280;">* Una vez efectuado el pago, se finiquitarán los honorarios profesionales (20%).</p>
         `;
         break;
-
-      // TEXTO PDF: "6) Indemnizado / Reclamo Terminado"
       case ReclamoEstado.INDEMNIZADO:
-        subject = '¡Felicitaciones!'; // Segun PDF
-        statusColor = '#16a34a'; // Verde
+        subject = '¡Felicitaciones!';
+        statusColor = '#16a34a';
         bodyText = `
           <p><strong>Su reclamo fue acordado y cobrado exitosamente.</strong></p>
-          <p>Gracias por confiar en Reclama Ya! para acompañarlo en este proceso.</p>
-          <p>Recuerde que estamos a su disposición para cualquier gestión futura.</p>
+          <p>Gracias por confiar en Reclama Ya! Recuerde que estamos a su disposición.</p>
         `;
         break;
-
-      // TEXTO PDF: "7) Rechazado"
       case ReclamoEstado.RECHAZADO:
         subject = '⚠️ Información sobre su reclamo';
-        statusColor = '#dc2626'; // Rojo
+        statusColor = '#dc2626';
         bodyText = `
-          <p>Lamentamos informarle que, tras el análisis de nuestro equipo legal, su reclamo fue <strong>rechazado por improcedencia legal</strong>.</p>
-          <p>Si desea más información o consultar sobre otros casos, puede contactarnos a través de nuestra plataforma.</p>
+          <p>Lamentamos informarle que, tras el análisis legal, su reclamo fue <strong>rechazado por improcedencia</strong>.</p>
+          <p>Para más información, contáctenos a través de la plataforma.</p>
         `;
         break;
-
       default: return;
     }
 
@@ -188,7 +158,7 @@ export class MailService {
       <p style="color: #6b7280; margin-bottom: 20px;">Hola ${nombre}, hay un cambio de estado en el expediente <strong>#${codigo}</strong>.</p>
       
       <div style="text-align: center; margin: 25px 0;">
-         <span style="display: inline-block; padding: 8px 24px; background-color: ${statusColor}; color: white; border-radius: 50px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">${nuevoEstado}</span>
+         <span style="display: inline-block; padding: 8px 24px; background-color: ${statusColor}; color: white; border-radius: 50px; font-weight: bold; font-size: 14px; text-transform: uppercase;">${nuevoEstado}</span>
       </div>
 
       <div style="background-color: #ffffff; padding: 10px 0; color: #374151; line-height: 1.6; font-size: 16px;">
@@ -240,7 +210,7 @@ export class MailService {
     const content = `
       <h1>¡Cuenta Aprobada! 🎉</h1>
       <p>Hola ${nombre}, tu cuenta ha sido verificada correctamente.</p>
-      <p>Ya tienes acceso total a la plataforma para cargar siniestros y gestionar tu cartera.</p>
+      <p>Ya tienes acceso total a la plataforma.</p>
       <br>
       <div style="text-align: center;">
         <a href="${this.webUrl}/login" style="${this.getButtonStyle()}">Ingresar a mi Cuenta</a>
@@ -268,7 +238,7 @@ export class MailService {
     }
   }
 
-  // 👇 TEMPLATE MAESTRO "ENTERPRISE"
+  // 👇 TEMPLATE MAESTRO: LOGO DE TEXTO CSS
   private getTemplate(bodyContent: string): string {
     return `
       <!DOCTYPE html>
@@ -276,41 +246,42 @@ export class MailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,900;1,900&display=swap" rel="stylesheet">
       </head>
-      <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+      <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Montserrat', Verdana, sans-serif;">
         
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f3f4f6; padding: 40px 0;">
           <tr>
             <td align="center">
               
               <div style="margin-bottom: 24px;">
-                 <h2 style="color: ${this.primaryColor}; margin: 0; font-weight: 800; letter-spacing: -1px; font-size: 28px;">Reclama<span style="color: #111827;">Ya!</span></h2>
-                 </div>
+                 <a href="${this.webUrl}" style="text-decoration: none; display: inline-block;">
+                    <span style="font-family: 'Montserrat', sans-serif; font-size: 32px; font-weight: 700; color: ${this.darkColor}; letter-spacing: -1px;">Reclama</span>
+                    <span style="font-family: 'Montserrat', sans-serif; font-size: 32px; font-weight: 900; font-style: italic; color: ${this.primaryColor}; margin-left: 1px;">Ya</span>
+                    <span style="font-family: 'Montserrat', sans-serif; font-size: 32px; font-weight: 700; color: ${this.primaryColor};">.</span>
+                 </a>
+              </div>
 
               <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
-                
                 <tr>
                   <td height="6" style="background-color: ${this.primaryColor};"></td>
                 </tr>
-
                 <tr>
                   <td style="padding: 40px 40px;">
                     ${bodyContent}
                   </td>
                 </tr>
-
                 <tr>
                   <td style="padding: 0 40px 40px 40px; color: #6b7280; font-size: 14px;">
                     <p style="margin: 0;">Atentamente,</p>
                     <p style="margin: 5px 0; font-weight: bold; color: #374151;">Equipo ReclamaYa!</p>
                   </td>
                 </tr>
-
               </table>
 
               <div style="margin-top: 24px; text-align: center; color: #9ca3af; font-size: 12px;">
-                <p style="margin: 4px 0;">San Martin 930, 5° Piso - San Miguel de Tucumán - Tucumán - Argentina</p>
-                <p style="margin: 4px 0;">© ${new Date().getFullYear()} Reclama Ya. Todos los derechos reservados.</p>
+                <p style="margin: 4px 0;">San Martin 930, 5° Piso - San Miguel de Tucumán</p>
+                <p style="margin: 4px 0;">© ${new Date().getFullYear()} Reclama Ya.</p>
                 <p style="margin: 12px 0;">
                   <a href="${this.webUrl}" style="color: #9ca3af; text-decoration: underline;">Web</a> | 
                   <a href="mailto:contacto@reclamaya.ar" style="color: #9ca3af; text-decoration: underline;">Contacto</a>
@@ -326,7 +297,7 @@ export class MailService {
     `;
   }
 
-  // Helper para botones
+  // Helper botones
   private getButtonStyle(): string {
     return `
       display: inline-block;
