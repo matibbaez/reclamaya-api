@@ -58,6 +58,31 @@ export class MailService {
     await this.sendMail(email, '✅ Reclamo Enviado Exitosamente', this.getTemplate(content));
   }
 
+  async sendNewUserAdmin(data: { nombre: string; email: string; dni: string; rol: string }) {
+    if (!this.resend) return;
+    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
+
+    const content = `
+      <h2 style="color: ${this.primaryColor};">👤 Nuevo Usuario Registrado</h2>
+      <p style="font-size: 16px;">Un nuevo usuario se ha registrado en la plataforma y se encuentra en estado <strong>PENDIENTE</strong>.</p>
+      
+      <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">Nombre:</td><td style="padding: 8px 0; font-weight: bold;">${data.nombre}</td></tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">Email:</td><td style="padding: 8px 0; font-weight: bold;">${data.email}</td></tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">DNI:</td><td style="padding: 8px 0; font-weight: bold;">${data.dni}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Rol Solicitado:</td><td style="padding: 8px 0; font-weight: bold; color: ${this.primaryColor};">${data.rol}</td></tr>
+        </table>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="${this.webUrl}/admin/usuarios" style="${this.getButtonStyle()}">Revisar y Aprobar</a>
+      </div>
+    `;
+
+    await this.sendMail(adminEmail, '🔔 Nuevo Usuario Pendiente de Aprobación', this.getTemplate(content));
+  }
+
   // Notificación Interna (Admin) - Nuevo Reclamo
   async sendNewReclamoAdmin(data: { nombre: string; dni: string; codigo_seguimiento: string; tipo: string }) {
     if (!this.resend) return;
@@ -231,16 +256,34 @@ export class MailService {
 
   async sendAccountApproved(email: string, nombre: string) {
     if (!this.resend) return;
+    
     const content = `
-      <h1>¡Cuenta Aprobada! 🎉</h1>
-      <p>Hola ${nombre}, tu cuenta ha sido verificada correctamente.</p>
-      <p>Ya tienes acceso total a la plataforma.</p>
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: ${this.darkColor}; font-size: 24px; margin-bottom: 10px;">Bienvenido a nuestro sistema LegalTech</h1>
+        
+        <p style="color: ${this.primaryColor}; font-weight: bold; font-size: 15px; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
+          Trazabilidad • Transparencia • Innovación
+        </p>
+        
+        <p style="color: #6b7280; font-size: 14px; margin-top: 8px; font-style: italic;">
+          "Transferencia de administración de gestión en tus siniestros"
+        </p>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+
+      <p style="font-size: 16px; line-height: 1.6; color: #374151;">
+        Hola <strong>${nombre}</strong>,<br><br>
+        Tu cuenta ha sido verificada correctamente. Ya tenés acceso total a la plataforma para comenzar a cargar y gestionar reclamos.
+      </p>
+
       <br>
       <div style="text-align: center;">
         <a href="${this.webUrl}/login" style="${this.getButtonStyle()}">Ingresar a mi Cuenta</a>
       </div>
     `;
-    await this.sendMail(email, 'Bienvenido a Reclama Ya', this.getTemplate(content));
+
+    await this.sendMail(email, '🎉 Cuenta Aprobada - Bienvenido a Reclama Ya', this.getTemplate(content));
   }
 
   // ==========================================
