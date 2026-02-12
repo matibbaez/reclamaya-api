@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { RegisterAuthDto } from './dto/register-auth.dto';
+import { MailService } from 'src/mail/mail.service'; // 👈 1. IMPORTAR
 
 @Injectable()
 export class AuthService {
@@ -14,7 +15,8 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-    @InjectRepository(User) private userRepository: Repository<User>, 
+    @InjectRepository(User) private userRepository: Repository<User>,
+    private readonly mailService: MailService, // 👈 2. INYECTAR SERVICIO
   ) {}
 
   // -----------------------------------------------------
@@ -83,6 +85,14 @@ export class AuthService {
     });
 
     await this.userRepository.save(newUser);
+
+    // 👇 3. ENVIAR AVISO AL ADMIN (Sin await para no demorar la respuesta)
+    this.mailService.sendNewUserAdmin({
+      nombre: newUser.nombre,
+      email: newUser.email,
+      dni: newUser.dni,
+      rol: newUser.role
+    }).catch(err => console.error('❌ Error enviando mail al admin sobre nuevo usuario:', err));
 
     return { message: 'Registro exitoso. Espera la aprobación del administrador.', userId: newUser.id };
   }

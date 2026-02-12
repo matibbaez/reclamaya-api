@@ -58,6 +58,7 @@ export class MailService {
     await this.sendMail(email, '✅ Reclamo Enviado Exitosamente', this.getTemplate(content));
   }
 
+  // 🔔 NUEVO: AVISO AL ADMIN DE NUEVO USUARIO
   async sendNewUserAdmin(data: { nombre: string; email: string; dni: string; rol: string }) {
     if (!this.resend) return;
     const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
@@ -199,7 +200,7 @@ export class MailService {
   }
 
   // ==========================================
-  // 3. ACTUALIZACIÓN DE ESTADO: ADMIN (NUEVO)
+  // 3. ACTUALIZACIÓN DE ESTADO: ADMIN
   // ==========================================
   async sendAdminStatusUpdate(nombreCliente: string, nuevoEstado: string, codigo: string) {
     if (!this.resend) return;
@@ -254,6 +255,9 @@ export class MailService {
     await this.sendMail(email, `Novedad Red - Caso #${codigo}`, this.getTemplate(content));
   }
 
+  // ==========================================
+  // 5. APROBACIÓN DE CUENTA (LEGALTECH)
+  // ==========================================
   async sendAccountApproved(email: string, nombre: string) {
     if (!this.resend) return;
     
