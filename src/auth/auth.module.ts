@@ -8,23 +8,22 @@ import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
-// 1. IMPORTAMOS EL CONFIG MODULE
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MailModule } from 'src/mail/mail.module'; // 👈 1. IMPORTAR ESTO
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     UsersModule,
     PassportModule,
+    MailModule, // 👈 2. AGREGARLO AQUÍ (CRUCIAL PARA QUE FUNCIONE)
     
-    // 2. CONFIGURACIÓN JWT LEYENDO DEL .ENV
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        // Acá busca la variable JWT_SECRET en tu archivo .env
         secret: configService.get('JWT_SECRET') || 'UnaClaveSecretaPorDefecto123', 
-        signOptions: { expiresIn: '1d' }, // El token dura 1 día
+        signOptions: { expiresIn: '1d' }, 
       }),
     }),
   ],
