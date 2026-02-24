@@ -9,14 +9,14 @@ import { JwtStrategy } from './jwt.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MailModule } from 'src/mail/mail.module'; // 👈 1. IMPORTAR ESTO
+import { MailModule } from 'src/mail/mail.module'; 
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     UsersModule,
     PassportModule,
-    MailModule, // 👈 2. AGREGARLO AQUÍ (CRUCIAL PARA QUE FUNCIONE)
+    MailModule, 
     
     JwtModule.registerAsync({
       imports: [ConfigModule],
