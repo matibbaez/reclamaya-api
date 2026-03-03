@@ -61,7 +61,8 @@ export class MailService {
   // 🔔 NUEVO: AVISO AL ADMIN DE NUEVO USUARIO
   async sendNewUserAdmin(data: { nombre: string; email: string; dni: string; rol: string }) {
     if (!this.resend) return;
-    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
+    const adminEmailsRaw = this.configService.get<string>('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
+    const adminEmails = adminEmailsRaw.split(',').map(email => email.trim());
 
     const content = `
       <h2 style="color: ${this.primaryColor};">👤 Nuevo Usuario Registrado</h2>
@@ -81,13 +82,14 @@ export class MailService {
       </div>
     `;
 
-    await this.sendMail(adminEmail, '🔔 Nuevo Usuario Pendiente de Aprobación', this.getTemplate(content));
+    await this.sendMail(adminEmails, '🔔 Nuevo Usuario Pendiente de Aprobación', this.getTemplate(content));
   }
 
   // Notificación Interna (Admin) - Nuevo Reclamo
   async sendNewReclamoAdmin(data: { nombre: string; dni: string; codigo_seguimiento: string; tipo: string }) {
     if (!this.resend) return;
-    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com'; 
+    const adminEmailsRaw = this.configService.get<string>('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
+    const adminEmails = adminEmailsRaw.split(',').map(email => email.trim());
     
     const content = `
       <h2 style="color: #be123c;">🚨 Nuevo Siniestro Ingresado</h2>
@@ -104,7 +106,7 @@ export class MailService {
       </div>
     `;
 
-    await this.sendMail(adminEmail, `[ADMIN] Nuevo Caso: ${data.tipo}`, this.getTemplate(content));
+    await this.sendMail(adminEmails, `[ADMIN] Nuevo Caso: ${data.tipo}`, this.getTemplate(content));
   }
 
   // ==========================================
@@ -204,7 +206,8 @@ export class MailService {
   // ==========================================
   async sendAdminStatusUpdate(nombreCliente: string, nuevoEstado: string, codigo: string) {
     if (!this.resend) return;
-    const adminEmail = this.configService.get('ADMIN_EMAIL') || 'mfbcaneda@gmail.com'; 
+    const adminEmailsRaw = this.configService.get<string>('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
+    const adminEmails = adminEmailsRaw.split(',').map(email => email.trim());
 
     const content = `
       <h3 style="color: ${this.darkColor};">ℹ️ Actualización de Caso</h3>
@@ -221,7 +224,7 @@ export class MailService {
       </div>
     `;
 
-    await this.sendMail(adminEmail, `[ADMIN] Estado Actualizado #${codigo}`, this.getTemplate(content));
+    await this.sendMail(adminEmails, `[ADMIN] Estado Actualizado #${codigo}`, this.getTemplate(content));
   }
 
   // ==========================================
@@ -294,7 +297,7 @@ export class MailService {
   // 🛠️ MÉTODOS PRIVADOS (CORE Y DISEÑO)
   // ==========================================
 
-  private async sendMail(to: string, subject: string, html: string) {
+  private async sendMail(to: string | string[], subject: string, html: string) {
     if (!this.resend) return;
     try {
       await this.resend.emails.send({
