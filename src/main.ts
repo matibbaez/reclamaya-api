@@ -58,15 +58,32 @@ async function bootstrap() {
   
   console.log(`🚀 Application is running on: ${await app.getUrl()}`);
 
-  // --- 💡 LÓGICA KEEP-ALIVE PARA SUPABASE ---
-  // Esta función hace una consulta simple cada 1 hora para evitar la pausa del proyecto
+  // --- 💡 LÓGICA KEEP-ALIVE PARA SUPABASE (VÍA API REST) ---
+  // Esta función hace una petición HTTP cada 1 hora para que Supabase registre actividad real
   setInterval(async () => {
     try {
-      // SELECT 1 es la consulta más ligera posible en Postgres
-      await usersRepository.query('SELECT 1');
-      console.log('✨ Keep-alive: Supabase detectó actividad.');
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        });
+        
+        if (response.ok) {
+          console.log('✨ Keep-alive: Ping HTTP exitoso a la API de Supabase.');
+        } else {
+          console.error('❌ Keep-alive: Supabase respondió con error:', response.statusText);
+        }
+      } else {
+        console.warn('⚠️ Keep-alive: Faltan variables de Supabase en el .env');
+      }
     } catch (e) {
-      console.error('❌ Keep-alive error:', e.message);
+      console.error('❌ Error en el Keep-alive de Supabase:', e.message);
     }
   }, 1000 * 60 * 60); // Ejecutar cada 1 hora
 }
