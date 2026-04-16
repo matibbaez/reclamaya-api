@@ -13,11 +13,12 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://reclamaya.ar', 
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:4200' 
+      'https://www.reclamaya.ar', 
+      'https://admin.reclamaya.ar', 
+      'http://localhost:4200',
+      'http://localhost:3000'
     ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
   
