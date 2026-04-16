@@ -11,43 +11,43 @@ export enum UserRole {
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string; 
 
   @Column()
-  nombre: string;
+  nombre!: string; 
 
   @Column({ unique: true })
-  email: string;
+  email!: string; 
 
-  @Column()
-  password: string;
+  @Column({ select: false }) 
+  password!: string; 
 
   @Column({
     type: 'enum',
     enum: UserRole,
     default: UserRole.PRODUCTOR,
   })
-  role: string;
+  role!: string; 
 
   @Column({ default: false })
-  isApproved: boolean;
+  isApproved!: boolean; 
 
   @Column({ nullable: true }) 
-  dni: string;
+  dni!: string; 
 
   @Column({ nullable: true })
-  telefono: string;
+  telefono!: string; 
 
   @Column({ nullable: true })
-  matricula: string;
+  matricula!: string; 
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date; 
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'referido_por_id' })
-  referidoPor: User | null;
+  referidoPor!: User | null; 
 
   @OneToMany(() => Reclamo, (reclamo) => reclamo.usuario_creador)
-  reclamos_cargados: Reclamo[];
+  reclamos_cargados!: Reclamo[]; 
 }

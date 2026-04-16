@@ -75,8 +75,14 @@ export class UsersService {
     return { message: 'Usuario aprobado correctamente' };
   }
 
+  // -----------------------------------------------------
+  // ✅ FIX APLICADO: FORZAR SELECT DEL PASSWORD PARA EL LOGIN
+  // -----------------------------------------------------
   findOneByEmail(email: string) {
-    return this.userRepository.findOne({ where: { email } });
+    return this.userRepository.findOne({ 
+      where: { email },
+      select: ['id', 'email', 'password', 'nombre', 'role', 'isApproved', 'dni', 'telefono', 'matricula', 'createdAt'] // Traemos el password explícitamente para validar el login
+    });
   }
 
   async findOne(id: string) {

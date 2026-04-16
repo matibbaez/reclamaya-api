@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Reclamo, ReclamoEstado, MensajeReclamo } from './entities/reclamo.entity';
@@ -300,6 +300,17 @@ export class ReclamosService {
     return { message: '¡Éxito!', codigo_seguimiento };
   }
 
+  private validarAcceso(reclamo: Reclamo, user: any) {
+    if (user.role === UserRole.ADMIN) return true; // El admin ve todo
+    if (reclamo.tramitador?.id === user.id) return true; // El tramitador asignado ve lo suyo
+    if (reclamo.usuario_creador?.id === user.id) return true; // El productor ve sus propios casos
+    
+    // Si es un organizador/broker, puede ver los de sus referidos
+    if (reclamo.usuario_creador?.referidoPor?.id === user.id) return true;
+
+    throw new ForbiddenException('Acceso denegado: No tienes permiso para ver o modificar este reclamo.');
+  }
+
   // ----------------------------------------------------------------------
   // ASIGNAR TRAMITADOR
   // ----------------------------------------------------------------------
@@ -375,7 +386,7 @@ export class ReclamosService {
     };
   }
 
-  async update(id: string, body: any) {
+  async update(id: string, body: any, user: any) { // 👇 FIX IDOR: Agregamos user
     const reclamo = await this.reclamoRepository.findOne({ 
         where: { id }, 
         relations: ['tramitador', 'usuario_creador', 'usuario_creador.referidoPor'] 
@@ -383,6 +394,9 @@ export class ReclamosService {
     
     if (!reclamo) throw new NotFoundException('No encontrado');
     
+    // 👇 FIX IDOR: Bloqueamos si no tiene permiso para editar
+    this.validarAcceso(reclamo, user);
+
     const estadoAnterior = reclamo.estado;
 
     Object.assign(reclamo, body);
@@ -478,7 +492,7 @@ export class ReclamosService {
   // ----------------------------------------------------------------------
   // DESCARGA DE ARCHIVOS
   // ----------------------------------------------------------------------
-  async getArchivoUrl(reclamoId: string, tipoArchivo: string, index: number = 0) {
+  async getArchivoUrl(reclamoId: string, tipoArchivo: string, index: number = 0, user: any) { // 👇 FIX IDOR: Agregamos user
     const mapaColumnas: Record<string, keyof Reclamo> = {
       'dni': 'path_dni',
       'licencia': 'path_licencia',
@@ -498,8 +512,16 @@ export class ReclamosService {
     const columnaBd = mapaColumnas[tipoArchivo];
     if (!columnaBd) throw new BadRequestException(`El tipo de archivo '${tipoArchivo}' no es válido.`);
 
-    const reclamo = await this.reclamoRepository.findOne({ where: { id: reclamoId } });
+    // 👇 FIX IDOR: Le sumamos relations para que validarAcceso sepa de quién es el reclamo
+    const reclamo = await this.reclamoRepository.findOne({ 
+        where: { id: reclamoId },
+        relations: ['tramitador', 'usuario_creador', 'usuario_creador.referidoPor'] 
+    });
+    
     if (!reclamo) throw new NotFoundException(`Reclamo con ID ${reclamoId} no encontrado`);
+
+    // 👇 FIX IDOR: Bloqueamos descarga si es el PDF/Imagen de otro
+    this.validarAcceso(reclamo, user);
 
     const filePath = reclamo[columnaBd] as any;
     
@@ -518,13 +540,18 @@ export class ReclamosService {
     return this.storageService.createSignedUrl(targetPath);
   }
   
-  async findOne(id: string) { 
+  async findOne(id: string, user: any) { 
     const reclamo = await this.reclamoRepository.findOne({ 
       where: { id },
-      relations: ['usuario_creador', 'tramitador'] 
+      // 👇 FIX IDOR: Aseguramos traer referidoPor para que validarAcceso funcione bien
+      relations: ['usuario_creador', 'tramitador', 'usuario_creador.referidoPor'] 
     }); 
 
     if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
+    
+    // 👇 FIX IDOR: Bloqueamos si no es su reclamo
+    this.validarAcceso(reclamo, user); 
+    
     return reclamo;
   }
 

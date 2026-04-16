@@ -6,6 +6,7 @@ import { ReclamosService } from './reclamos.service';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import 'multer';
 
 // 1. ACTUALIZAMOS LA INTERFACE PARA INCLUIR TODOS LOS TIPOS
 interface IPathsReclamo {
@@ -123,24 +124,24 @@ export class ReclamosController {
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.reclamosService.update(id, body);
+  update(@Param('id') id: string, @Body() body: any, @Request() req) { // <-- FIX IDOR: Se agrega @Request() req
+    return this.reclamosService.update(id, body, req.user); // <-- FIX IDOR: Se pasa req.user al servicio
   }
 
   // ------------------------------------------------------------------
-  // 7. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO) -> ¡AQUÍ ESTÁ LA CORRECCIÓN!
+  // 7. ENDPOINT: "DESCARGAR ARCHIVO" (PRIVADO) 
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get('descargar/:id/:tipo')
   async descargarArchivo(
     @Param('id') id: string,
-    @Param('tipo') tipo: string, // Usamos string para ser flexibles
-    @Query('index') index?: string, // <--- RECIBIMOS EL ÍNDICE
+    @Param('tipo') tipo: string, 
+    @Request() req, // <-- LO MOVIMOS ACÁ ARRIBA (Porque es obligatorio)
+    @Query('index') index?: string // <-- LO DEJAMOS AL FINAL (Porque es opcional con el "?")
   ) {
-    // Parseamos el índice a número (si no viene, mandamos 0)
     const fileIndex = index ? parseInt(index, 10) : 0;
     
-    const urlTemporal = await this.reclamosService.getArchivoUrl(id, tipo, fileIndex);
+    const urlTemporal = await this.reclamosService.getArchivoUrl(id, tipo, fileIndex, req.user); 
     return { url: urlTemporal };
   }
 
@@ -149,7 +150,9 @@ export class ReclamosController {
   // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.reclamosService.findOne(id); }
+  findOne(@Param('id') id: string, @Request() req) { // <-- FIX IDOR: Se agrega @Request() req
+    return this.reclamosService.findOne(id, req.user); // <-- FIX IDOR: Se pasa req.user al servicio
+  }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')

@@ -10,15 +10,24 @@ import { json, urlencoded } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  app.enableCors({
+    origin: [
+      'https://reclamaya.ar', 
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:4200' 
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
+  
   // 1. AUMENTAR EL LÍMITE DE SUBIDA
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ extended: true, limit: '50mb' }));
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   // 2. ACTIVAR SEGURIDAD
   app.use(helmet()); 
   
-  // 3. HABILITAR CORS
-  app.enableCors(); 
 
   // 4. VALIDACIÓN ESTRICTA
   app.useGlobalPipes(new ValidationPipe({
@@ -83,7 +92,8 @@ async function bootstrap() {
         console.warn('⚠️ Keep-alive: Faltan variables de Supabase en el .env');
       }
     } catch (e) {
-      console.error('❌ Error en el Keep-alive de Supabase:', e.message);
+      const error = e as Error;
+      console.error('❌ Error en el Keep-alive de Supabase:', error.message);
     }
   }, 1000 * 60 * 60); // Ejecutar cada 1 hora
 }
