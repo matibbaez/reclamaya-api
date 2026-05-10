@@ -5,7 +5,7 @@ import { ReclamoEstado } from '../reclamos/entities/reclamo.entity';
 
 @Injectable()
 export class MailService {
-  private resend: Resend;
+  private resend!: Resend;
   private mailFrom: string;
   
   // 🎨 COLORES DE MARCA
@@ -199,6 +199,39 @@ export class MailService {
     `;
 
     await this.sendMail(email, subject, this.getTemplate(content));
+  }
+  
+  // =========================================================
+  // AVISO AL TRAMITADOR POR ASIGNACIÓN DE UN NUEVO CASO
+  // =========================================================
+  async sendTramitadorAssignment(email: string, nombreTramitador: string, codigo: string, nombreCliente: string) {
+    if (!this.resend) return;
+
+    const content = `
+      <h2 style="color: ${this.darkColor};">Hola, ${nombreTramitador}</h2>
+      <p style="font-size: 16px;">Se le ha asignado un nuevo caso para gestionar en la plataforma.</p>
+      
+      <div style="background-color: #f0f9ff; border-left: 4px solid ${this.primaryColor}; padding: 15px; border-radius: 4px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 8px 0; color: #6b7280;">Caso:</td>
+            <td style="padding: 8px 0; font-weight: bold; color: ${this.primaryColor};">#${codigo}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280;">Cliente:</td>
+            <td style="padding: 8px 0; font-weight: bold;">${nombreCliente}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="color: #4b5563; font-size: 14px;">Recuerde revisar la documentación cargada para comenzar a trabajar en el expediente.</p>
+
+      <div style="text-align: center; margin-top: 25px;">
+        <a href="${this.webUrl}/admin" style="${this.getButtonStyle()}">Ir al Panel de Gestión</a>
+      </div>
+    `;
+
+    await this.sendMail(email, `📁 Nuevo Caso Asignado: #${codigo}`, this.getTemplate(content));
   }
 
   // ==========================================

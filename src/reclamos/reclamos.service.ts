@@ -332,7 +332,17 @@ export class ReclamosService {
       reclamo.estado = ReclamoEstado.RECEPCIONADO;
     }
 
-    return this.reclamoRepository.save(reclamo);
+    const actualizado = await this.reclamoRepository.save(reclamo);
+
+    // 👇 NUEVO: Enviar notificación por correo al tramitador asignado
+    this.mailService.sendTramitadorAssignment(
+      tramitador.email,
+      tramitador.nombre,
+      actualizado.codigo_seguimiento,
+      actualizado.nombre
+    ).catch(err => console.error('❌ Error enviando mail de asignación al tramitador:', err));
+
+    return actualizado;
   }
 
   async getGaleria(id: string) {
