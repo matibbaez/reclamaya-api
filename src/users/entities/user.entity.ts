@@ -44,9 +44,12 @@ export class User {
   @CreateDateColumn()
   createdAt!: Date; 
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { 
+    nullable: true, 
+    onDelete: 'SET NULL' 
+  })
   @JoinColumn({ name: 'referido_por_id' })
-  referidoPor!: User | null; 
+  referidoPor!: User | null;
 
   @OneToMany(() => Reclamo, (reclamo) => reclamo.usuario_creador)
   reclamos_cargados!: Reclamo[]; 
