@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -40,6 +40,31 @@ export class UsersController {
   @Patch(':id/approve')
   async approve(@Param('id') id: string) {
     return this.usersService.approveUser(id);
+  }
+
+  // -----------------------------------------------------
+  // CAMBIAR ROL DE USUARIO (SOLO ADMIN Y ROLES PERMITIDOS)
+  // -----------------------------------------------------
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/role')
+  async cambiarRol(
+    @Param('id') id: string,
+    @Body('role') nuevoRol: string,
+    @Request() req
+  ) {
+    // 1. Validamos que quien hace la petición sea estrictamente un Administrador logueado
+    const rolUsuarioLogueado = req.user?.role;
+    if (rolUsuarioLogueado !== 'Admin' && rolUsuarioLogueado !== 'ADMIN') {
+      throw new UnauthorizedException('Acceso denegado. Solo un administrador puede cambiar los roles de los usuarios.');
+    }
+
+    // 👇 2. NUEVO: Bloqueo estricto de escalada de privilegios
+    const rolesPermitidos = ['Productor', 'Organizador', 'Tramitador'];
+    if (!rolesPermitidos.includes(nuevoRol)) {
+      throw new UnauthorizedException(`Operación rechazada. No está permitido asignar el rol "${nuevoRol}" mediante este canal.`);
+    }
+
+    return this.usersService.cambiarRol(id, nuevoRol);
   }
 
   @Get(':id')

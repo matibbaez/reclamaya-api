@@ -85,6 +85,19 @@ export class UsersService {
     });
   }
 
+  // ----------------------------------------------------------------------
+  // CAMBIAR ROL DE USUARIO (SOLO ADMIN)
+  // ----------------------------------------------------------------------
+  async cambiarRol(id: string, nuevoRol: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    user.role = nuevoRol;
+    return await this.userRepository.save(user);
+  }
+
   async findOne(id: string) {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
