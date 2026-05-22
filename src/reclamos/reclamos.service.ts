@@ -11,7 +11,15 @@ import { PdfService } from 'src/common/pdf.service';
 import { User, UserRole } from 'src/users/entities/user.entity';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+// En src/reclamos/reclamos.service.ts
+const ALLOWED_MIME_TYPES = [
+  'application/pdf', 
+  'image/jpeg', 
+  'image/png', 
+  'image/webp', 
+  'image/heic', 
+  'image/heif' 
+];
 
 @Injectable()
 export class ReclamosService {

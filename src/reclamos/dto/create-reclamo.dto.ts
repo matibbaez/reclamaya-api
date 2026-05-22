@@ -7,22 +7,22 @@ export class CreateReclamoDto {
   
   // --- DATOS PERSONALES ---
   @IsString() @IsNotEmpty() @MinLength(3)
-  nombre: string;
+  nombre!: string;
 
-  @IsNotEmpty() @IsNumberString() @MinLength(7) @MaxLength(8)
-  dni: string;
+  @IsNotEmpty() @IsNumberString() @MinLength(7) @MaxLength(11)
+  dni!: string;
 
   @IsEmail() @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @IsString() @IsNotEmpty()
-  telefono: string;
+  telefono!: string;
 
   @IsString() @IsNotEmpty()
-  domicilio_usuario: string; // Nuevo: Domicilio real
+  domicilio_usuario!: string; // Nuevo: Domicilio real
 
   @IsString() @IsNotEmpty()
-  rol_victima: string; // 'Conductor', 'Acompanante', 'Peaton'
+  rol_victima!: string; // 'Conductor', 'Acompanante', 'Peaton'
 
   // --- DATOS DEL SINIESTRO / TERCERO ---
   @IsOptional() @IsString() codigo_ref?: string;
