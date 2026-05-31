@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -65,6 +65,36 @@ export class UsersController {
     }
 
     return this.usersService.cambiarRol(id, nuevoRol);
+  }
+
+  // -----------------------------------------------------
+  // CAMBIAR MI PROPIA CONTRASEÑA (PERFIL)
+  // -----------------------------------------------------
+  @UseGuards(JwtAuthGuard)
+  @Patch('perfil/cambiar-password')
+  async cambiarMiPassword(
+    @Body() body: any,
+    @Request() req
+  ) {
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException('Token inválido: No se pudo extraer el ID del usuario.');
+    }
+
+    const { passwordActual, passwordNueva } = body;
+
+    if (!passwordActual || !passwordNueva) {
+      throw new BadRequestException('Debe proporcionar la contraseña actual y la nueva.');
+    }
+
+    // 👇 NUEVA VALIDACIÓN ESTRICTA DE SEGURIDAD
+    const cumpleSeguridad = passwordNueva.length >= 8 && /(?=.*[A-Z])(?=.*\d)/.test(passwordNueva);
+    if (!cumpleSeguridad) {
+      throw new BadRequestException('La nueva contraseña debe tener mínimo 8 caracteres, incluir al menos una mayúscula y un número.');
+    }
+
+    return this.usersService.cambiarMiPassword(userId, passwordActual, passwordNueva);
   }
 
   @Get(':id')
