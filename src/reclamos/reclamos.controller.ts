@@ -1,6 +1,7 @@
 import {
   Controller, Get, Post, Body, Patch, Param, Delete, UseGuards,
-  UseInterceptors, UploadedFiles, Request, Query, BadRequestException
+  UseInterceptors, UploadedFiles, Request, Query, BadRequestException,
+  UnauthorizedException // <-- AGREGAMOS ESTE IMPORT
 } from '@nestjs/common';
 import { ReclamosService } from './reclamos.service';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
@@ -154,9 +155,23 @@ export class ReclamosController {
     return this.reclamosService.findOne(id, req.user); // <-- FIX IDOR: Se pasa req.user al servicio
   }
 
+  // ------------------------------------------------------------------
+  // ELIMINAR RECLAMO (SOLO ADMIN)
+  // ------------------------------------------------------------------
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) { return this.reclamosService.remove(id); }
+  async remove(@Param('id') id: string, @Request() req) {
+    // 1. Verificamos el rol del usuario desde el token
+    const role = req.user?.role;
+    
+    // 2. Si no es Admin, lo rebotamos
+    if (role !== 'Admin') {
+      throw new UnauthorizedException('Permiso denegado: Solo los administradores pueden eliminar casos.');
+    }
+
+    // 3. Si pasa el filtro, procedemos a borrar
+    return this.reclamosService.remove(id);
+  }
 
   @Post(':id/mensajes')
   @UseGuards(JwtAuthGuard)

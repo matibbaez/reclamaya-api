@@ -573,8 +573,6 @@ export class ReclamosService {
     return reclamo;
   }
 
-  remove(id: string) { return this.reclamoRepository.delete(id); }
-
   async findAllByUser(userId: string) {
     return this.reclamoRepository.find({
       where: [
@@ -586,4 +584,47 @@ export class ReclamosService {
       relations: ['usuario_creador', 'tramitador'] 
     });
   }
-}
+
+  // ----------------------------------------------------------------------
+  // ELIMINAR RECLAMO (LIMPIEZA PROFUNDA DB + CLOUDFLARE R2)
+  // ----------------------------------------------------------------------
+  async remove(id: string) {
+    // 1. Buscamos el reclamo con toda su data
+    const reclamo = await this.reclamoRepository.findOne({ where: { id } });
+    if (!reclamo) throw new NotFoundException('Reclamo no encontrado en la base de datos.');
+
+    // 2. Recolectamos todas las rutas de los archivos en un solo tacho de basura
+    const archivosParaBorrar: string[] = [];
+
+    // Arrays de archivos
+    const camposArray: (keyof Reclamo)[] = [
+      'path_dni', 'path_licencia', 'path_cedula', 'path_poliza', 'path_denuncia',
+      'path_medicos', 'path_presupuesto', 'path_cbu_archivo', 'path_denuncia_penal',
+      'path_fotos', 'path_complementaria'
+    ];
+
+    camposArray.forEach(campo => {
+      const arrayPaths = reclamo[campo] as string[];
+      if (arrayPaths && Array.isArray(arrayPaths)) {
+        archivosParaBorrar.push(...arrayPaths);
+      }
+    });
+
+    // Archivos únicos (PDFs generados)
+    if (reclamo.path_representacion) archivosParaBorrar.push(reclamo.path_representacion as string);
+    if (reclamo.path_honorarios) archivosParaBorrar.push(reclamo.path_honorarios as string);
+
+    // 3. Mandamos a Cloudflare R2 a quemar todo en paralelo
+    if (archivosParaBorrar.length > 0) {
+      // Promise.allSettled asegura que si un archivo ya no existe, el código siga borrando el resto
+      await Promise.allSettled(
+        archivosParaBorrar.map(path => this.storageService.deleteFile(path))
+      );
+    }
+
+    // 4. Finalmente, volamos la fila de Supabase
+    await this.reclamoRepository.delete(id);
+    
+    return { message: 'Reclamo y archivos eliminados correctamente.' };
+  }
+} 

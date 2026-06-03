@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { 
   S3Client, 
   PutObjectCommand, 
-  GetObjectCommand 
+  GetObjectCommand,
+  DeleteObjectCommand // <-- NUEVO: Importamos el comando para eliminar
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -82,6 +83,24 @@ export class StorageService {
     } catch (error: any) {
       this.logger.error(`Error generando URL firmada R2 para ${filePath}: ${error.message}`, error.stack);
       throw new InternalServerErrorException(`Error al generar link: ${error.message}`);
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // NUEVO: ELIMINAR ARCHIVO (Para limpieza de basura en Cloudflare R2)
+  // ----------------------------------------------------------------------
+  async deleteFile(key: string): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        })
+      );
+    } catch (error: any) {
+      // Solo lo logueamos pero no frenamos la ejecución, 
+      // por si el archivo ya había sido borrado a mano antes.
+      this.logger.error(`Aviso: No se pudo eliminar ${key} de R2: ${error.message}`);
     }
   }
 }
