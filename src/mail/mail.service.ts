@@ -292,6 +292,27 @@ export class MailService {
   }
 
   // ==========================================
+  // 4.5 MENSAJE NUEVO EN EL EXPEDIENTE
+  // ==========================================
+  async sendNuevoMensajeProductor(email: string, nombreProductor: string, codigo: string, nombreCliente: string, mensaje: string) {
+    if (!this.resend) return;
+    const content = `
+      <h3>Estimado Colega, ${nombreProductor}</h3>
+      <p>El estudio dejó un nuevo mensaje en el expediente de su cliente.</p>
+      <div style="background: #eff6ff; padding: 15px; border-left: 4px solid ${this.primaryColor}; margin: 20px 0;">
+        <p style="margin:5px 0"><strong>Caso:</strong> #${codigo}</p>
+        <p style="margin:5px 0"><strong>Asegurado:</strong> ${nombreCliente}</p>
+        <p style="margin:12px 0 0"><strong>Mensaje:</strong></p>
+        <p style="margin:5px 0; font-style: italic;">"${mensaje}"</p>
+      </div>
+      <div style="text-align:center;">
+        <a href="${this.webUrl}/mis-referidos" style="${this.getButtonStyle()}">Ver en la plataforma</a>
+      </div>
+    `;
+    await this.sendMail(email, `Nuevo mensaje - Caso #${codigo}`, this.getTemplate(content));
+  }
+
+  // ==========================================
   // 5. APROBACIÓN DE CUENTA (LEGALTECH)
   // ==========================================
   async sendAccountApproved(email: string, nombre: string) {

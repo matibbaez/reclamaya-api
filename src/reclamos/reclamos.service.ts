@@ -470,7 +470,10 @@ export class ReclamosService {
   // BITÁCORA DE MENSAJES
   // ----------------------------------------------------------------------
   async agregarMensaje(id: string, texto: string) {
-    const reclamo = await this.reclamoRepository.findOne({ where: { id }, relations: ['tramitador'] });
+    const reclamo = await this.reclamoRepository.findOne({ 
+      where: { id }, 
+      relations: ['tramitador', 'usuario_creador'] 
+    });
     if (!reclamo) throw new NotFoundException('Reclamo no encontrado');
 
     const nuevoMensaje: MensajeReclamo = {
@@ -479,13 +482,22 @@ export class ReclamosService {
       autor: 'Estudio'
     };
 
-    if (!reclamo.mensajes) {
-      reclamo.mensajes = [nuevoMensaje];
-    } else {
-      reclamo.mensajes.push(nuevoMensaje);
+    reclamo.mensajes = reclamo.mensajes ? [...reclamo.mensajes, nuevoMensaje] : [nuevoMensaje];
+
+    const actualizado = await this.reclamoRepository.save(reclamo);
+
+    // 👇 NOTIFICAR AL PRODUCTOR QUE CARGÓ EL CASO
+    if (reclamo.usuario_creador?.email) {
+      this.mailService.sendNuevoMensajeProductor(
+        reclamo.usuario_creador.email,
+        reclamo.usuario_creador.nombre,
+        reclamo.codigo_seguimiento,
+        reclamo.nombre,
+        texto
+      ).catch(e => console.error('Error mail nuevo mensaje productor:', e));
     }
 
-    return this.reclamoRepository.save(reclamo);
+    return actualizado;
   }
 
   async agregarNotaInterna(id: string, texto: string) {
