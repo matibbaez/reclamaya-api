@@ -59,7 +59,7 @@ export class MailService {
   }
 
   // 🔔 NUEVO: AVISO AL ADMIN DE NUEVO USUARIO
-  async sendNewUserAdmin(data: { nombre: string; email: string; dni: string; rol: string }) {
+  async sendNewUserAdmin(data: { nombre: string; email: string; dni: string; rol: string; matricula?: string }) {
     if (!this.resend) return;
     const adminEmailsRaw = this.configService.get<string>('ADMIN_EMAIL') || 'mfbcaneda@gmail.com';
     const adminEmails = adminEmailsRaw.split(',').map(email => email.trim());
@@ -73,6 +73,7 @@ export class MailService {
           <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">Nombre:</td><td style="padding: 8px 0; font-weight: bold;">${data.nombre}</td></tr>
           <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">Email:</td><td style="padding: 8px 0; font-weight: bold;">${data.email}</td></tr>
           <tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">DNI:</td><td style="padding: 8px 0; font-weight: bold;">${data.dni}</td></tr>
+          ${data.matricula ? `<tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; color: #6b7280;">Matrícula:</td><td style="padding: 8px 0; font-weight: bold;">${data.matricula}</td></tr>` : ''}
           <tr><td style="padding: 8px 0; color: #6b7280;">Rol Solicitado:</td><td style="padding: 8px 0; font-weight: bold; color: ${this.primaryColor};">${data.rol}</td></tr>
         </table>
       </div>
@@ -83,6 +84,22 @@ export class MailService {
     `;
 
     await this.sendMail(adminEmails, '🔔 Nuevo Usuario Pendiente de Aprobación', this.getTemplate(content));
+  }
+
+  // ==========================================
+  // ACUSE DE REGISTRO RECIBIDO (AL USUARIO)
+  // ==========================================
+  async sendRegistroRecibido(email: string, nombre: string) {
+    if (!this.resend) return;
+
+    const content = `
+      <h2 style="color: ${this.darkColor};">¡Recibimos tu registro, ${nombre}!</h2>
+      <p style="font-size: 16px; line-height: 1.6; color: #374151;">
+        Ya tenemos tu solicitud de alta en ReclamaYa. La activamos dentro de las 24 horas hábiles y te avisamos por mail apenas esté lista.
+      </p>
+    `;
+
+    await this.sendMail(email, 'Recibimos tu registro - ReclamaYa', this.getTemplate(content));
   }
 
   // Notificación Interna (Admin) - Nuevo Reclamo

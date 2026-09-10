@@ -43,6 +43,7 @@ export class AuthService {
   // -----------------------------------------------------
   async login(user: any) {
     const payload = { sub: user.id, email: user.email, role: user.role, nombre: user.nombre }; // 👈 agregado
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -85,13 +86,18 @@ export class AuthService {
 
     await this.userRepository.save(newUser);
 
-    // 👇 3. ENVIAR AVISO AL ADMIN (Sin await para no demorar la respuesta)
+    // 👇 AVISO AL ADMIN (con matrícula incluida)
     this.mailService.sendNewUserAdmin({
       nombre: newUser.nombre,
       email: newUser.email,
       dni: newUser.dni,
-      rol: newUser.role
+      rol: newUser.role,
+      matricula: newUser.matricula
     }).catch(err => console.error('❌ Error enviando mail al admin sobre nuevo usuario:', err));
+
+    // 👇 ACUSE DE RECIBIDO AL USUARIO QUE SE REGISTRÓ
+    this.mailService.sendRegistroRecibido(newUser.email, newUser.nombre)
+      .catch(err => console.error('❌ Error enviando mail de acuse al usuario:', err));
 
     return { message: 'Registro exitoso. Espera la aprobación del administrador.', userId: newUser.id };
   }
