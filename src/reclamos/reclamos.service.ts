@@ -91,8 +91,8 @@ export class ReclamosService {
             where: { id: dto.codigo_ref },
             relations: ['referidoPor'] 
         }) || undefined; 
-      } catch (error) {
-        console.warn('⚠️ Código de referido inválido:', dto.codigo_ref);
+      } catch {
+        // Se ignora el código de referido inválido sin exponer datos en los logs.
       }
     }
 
@@ -165,7 +165,9 @@ export class ReclamosService {
             });
             const fileRep: any = { buffer: pdfRep, originalname: 'representacion.pdf', mimetype: 'application/pdf', size: pdfRep.length };
             return await this.storageService.uploadFile(fileRep, 'legales', `${dto.dni}-representacion-${timestamp}.pdf`);
-        } catch (e) { console.error('Error Rep:', e); return null; }
+        } catch {
+            return null;
+        }
     };
 
     const honorariosTask = async () => {
@@ -176,7 +178,9 @@ export class ReclamosService {
             });
             const fileHon: any = { buffer: pdfHon, originalname: 'honorarios.pdf', mimetype: 'application/pdf', size: pdfHon.length };
             return await this.storageService.uploadFile(fileHon, 'legales', `${dto.dni}-honorarios-${timestamp}.pdf`);
-        } catch (e) { console.error('Error Hon:', e); return null; }
+        } catch {
+            return null;
+        }
     };
 
     const noSeguroTask = async () => {
@@ -190,7 +194,9 @@ export class ReclamosService {
                 });
                 const fakeFile: any = { buffer: pdfBuffer, originalname: `carta-no-seguro-${dto.dni}.pdf`, mimetype: 'application/pdf', size: pdfBuffer.length };
                 return await this.storageService.uploadFile(fakeFile, 'legales', `${dto.dni}-carta-generada-${timestamp}.pdf`);
-            } catch (e) { console.error('Error NoSeguro:', e); return null; }
+            } catch {
+                return null;
+            }
         }
         return null;
     };
@@ -271,7 +277,7 @@ export class ReclamosService {
     // --- E. EMAILS DE CONFIRMACIÓN ---
     
     // 1. Cliente
-    this.mailService.sendNewReclamoClient(dto.email, dto.nombre, codigo_seguimiento).catch(console.error);
+    this.mailService.sendNewReclamoClient(dto.email, dto.nombre, codigo_seguimiento).catch(() => undefined);
     
     // 2. Admin (Alerta)
     this.mailService.sendNewReclamoAdmin({
@@ -279,7 +285,7 @@ export class ReclamosService {
       dni: dto.dni,
       codigo_seguimiento,
       tipo: dto.rol_victima 
-    }).catch(console.error);
+    }).catch(() => undefined);
 
     // 3. Productor y Broker (Confirmación de carga)
     if (productor) {
@@ -290,7 +296,7 @@ export class ReclamosService {
             ReclamoEstado.ENVIADO,
             codigo_seguimiento,
             dto.nombre
-        ).catch(e => console.error('Error mail productor inicio:', e));
+        ).catch(() => undefined);
 
         // Al Broker (si tiene)
         if (productor.referidoPor) {
@@ -301,7 +307,7 @@ export class ReclamosService {
                 codigo_seguimiento,
                 productor.nombre,
                 dto.nombre
-            ).catch(e => console.error('Error mail broker inicio:', e));
+            ).catch(() => undefined);
         }
     }
 
@@ -348,7 +354,7 @@ export class ReclamosService {
       tramitador.nombre,
       actualizado.codigo_seguimiento,
       actualizado.nombre
-    ).catch(err => console.error('❌ Error enviando mail de asignación al tramitador:', err));
+    ).catch(() => undefined);
 
     return actualizado;
   }
@@ -429,7 +435,7 @@ export class ReclamosService {
             reclamo.nombre, 
             reclamo.estado, 
             reclamo.codigo_seguimiento
-        ).catch(e => console.error('Error mail admin update:', e));
+        ).catch(() => undefined);
 
         // 2. Notificar al CLIENTE
         this.mailService.sendClientStatusUpdate(
@@ -437,7 +443,7 @@ export class ReclamosService {
             reclamo.nombre, 
             reclamo.estado, 
             reclamo.codigo_seguimiento
-        ).catch(e => console.error('Error mail cliente:', e));
+        ).catch(() => undefined);
 
         // 3. Notificar al PRODUCTOR
         if (reclamo.usuario_creador) {
@@ -447,7 +453,7 @@ export class ReclamosService {
                 reclamo.estado,
                 reclamo.codigo_seguimiento,
                 reclamo.nombre 
-            ).catch(e => console.error('Error mail productor:', e));
+            ).catch(() => undefined);
 
             // 4. Notificar al BROKER
             if (reclamo.usuario_creador.referidoPor) {
@@ -458,7 +464,7 @@ export class ReclamosService {
                     reclamo.codigo_seguimiento,
                     reclamo.usuario_creador.nombre, 
                     reclamo.nombre 
-                ).catch(e => console.error('Error mail broker:', e));
+                ).catch(() => undefined);
             }
         }
     }
@@ -494,7 +500,7 @@ export class ReclamosService {
         reclamo.codigo_seguimiento,
         reclamo.nombre,
         texto
-      ).catch(e => console.error('Error mail nuevo mensaje productor:', e));
+      ).catch(() => undefined);
     }
 
     return actualizado;

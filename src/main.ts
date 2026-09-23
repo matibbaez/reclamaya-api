@@ -1,23 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { User, UserRole } from './users/entities/user.entity';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  const allowedOrigins = (process.env.CORS_ORIGINS ||
+    'https://reclamaya.ar,https://www.reclamaya.ar,https://admin.reclamaya.ar,http://localhost:4200,http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: [
-      'https://reclamaya.ar', 
-      'https://www.reclamaya.ar', 
-      'https://admin.reclamaya.ar', 
-      'http://localhost:4200',
-      'http://localhost:3000'
-    ],
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
@@ -36,31 +33,6 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true
   }));
-
-  // --- REPOSITORIO DE USUARIOS ---
-  const usersRepository = app.get(getRepositoryToken(User));
-
-  // --- SEED ADMIN ---
-  const adminEmail = 'admin@estudio.com'; 
-  const admin = await usersRepository.findOne({ where: { email: adminEmail } });
-
-  if (!admin) {
-    console.log('¡Admin no encontrado! Creando usuario admin...');
-    const password = await bcrypt.hash('PasswordSeguro123!', 10);
-    
-    const newAdmin = usersRepository.create({
-      nombre: 'Admin Estudio',
-      email: adminEmail,
-      password,
-      role: UserRole.ADMIN,
-      dni: '00000000',
-      telefono: '0000000000',
-      referidoPor: null 
-    });
-
-    await usersRepository.save(newAdmin);
-    console.log('✅ Admin creado con éxito');
-  }
 
   // --- CONFIGURACIÓN RENDER ---
   const port = process.env.PORT || 3000;

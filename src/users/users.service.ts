@@ -68,8 +68,6 @@ export class UsersService {
     user.isApproved = true;
     await this.userRepository.save(user);
 
-    // Enviar email
-    console.log(`✅ Usuario ${user.email} aprobado. Enviando mail...`);
     await this.mailService.sendAccountApproved(user.email, user.nombre);
 
     return { message: 'Usuario aprobado correctamente' };
@@ -79,10 +77,6 @@ export class UsersService {
   // CAMBIAR PROPIA CONTRASEÑA (AUTOGESTIÓN DESDE PERFIL)
   // ----------------------------------------------------------------------
   async cambiarMiPassword(userId: string, passwordActual: string, passwordNueva: string) {
-    // 👇 Logs para debug (luego los podés borrar)
-    console.log('-> ID del token:', userId);
-    console.log('-> Clave escrita por usuario:', passwordActual);
-
     // Forma nativa y absoluta de obligar a TypeORM a traer una columna protegida
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -92,8 +86,6 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('Usuario no encontrado en la base de datos.');
     }
-
-    console.log('-> Hash en Base de Datos:', user.password);
 
     if (!user.password) {
       // Si salta este error, significa que la columna en tu entidad no se llama 'password'

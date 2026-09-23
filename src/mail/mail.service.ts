@@ -19,8 +19,6 @@ export class MailService {
 
     if (apiKey) {
       this.resend = new Resend(apiKey);
-    } else {
-      console.warn('⚠️ ATENCIÓN: No hay RESEND_API_KEY. Los mails no saldrán.');
     }
   }
 
@@ -377,9 +375,8 @@ export class MailService {
         subject,
         html,
       });
-      console.log(`📧 Mail enviado a ${to} desde ${this.mailFrom} | Asunto: ${subject}`);
-    } catch (error) {
-      console.error(`❌ Error enviando mail a ${to}:`, error);
+    } catch {
+      // No registramos destinatarios ni contenido para evitar exponer datos sensibles en logs.
     }
   }
 

@@ -93,11 +93,11 @@ export class AuthService {
       dni: newUser.dni,
       rol: newUser.role,
       matricula: newUser.matricula
-    }).catch(err => console.error('❌ Error enviando mail al admin sobre nuevo usuario:', err));
+    }).catch(() => undefined);
 
     // 👇 ACUSE DE RECIBIDO AL USUARIO QUE SE REGISTRÓ
     this.mailService.sendRegistroRecibido(newUser.email, newUser.nombre)
-      .catch(err => console.error('❌ Error enviando mail de acuse al usuario:', err));
+      .catch(() => undefined);
 
     return { message: 'Registro exitoso. Espera la aprobación del administrador.', userId: newUser.id };
   }
