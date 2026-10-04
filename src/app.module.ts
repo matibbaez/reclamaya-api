@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule'; // 👈 nuevo import
+import { BackupModule } from './backup/backup.module'; // 👈 nuevo import
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -43,12 +45,16 @@ import { User } from './users/entities/user.entity';
       }),
     }),
 
-    // 3. NUESTROS MÓDULOS DE LÓGICA
+    // 3. MÓDULO DE TAREAS PROGRAMADAS (necesario para el @Cron del backup)
+    ScheduleModule.forRoot(), // 👈 agregado
+
+    // 4. NUESTROS MÓDULOS DE LÓGICA
     ReclamosModule,
     StorageModule,
     UsersModule,
     AuthModule,
     MailModule,
+    BackupModule, // 👈 agregado
   ],
   controllers: [AppController],
   providers: [
